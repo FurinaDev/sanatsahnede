@@ -1,0 +1,125 @@
+import 'dotenv/config';
+import path from 'path';
+import { pathToFileURL } from 'url';
+import express, { Express } from 'express';
+import cookieParser from 'cookie-parser';
+import { openDatabase, DbInstance } from './server/db/database';
+import { initSchema } from './server/db/schema';
+import { getSchemaVersion } from './server/db/migrations';
+import { seedDatabase } from './server/db/seed';
+import { attachSessionUser } from './server/middleware/auth';
+import { createAuthRouter } from './server/modules/auth';
+import { createBootstrapRouter } from './server/modules/bootstrap';
+import { createProfilesRouter } from './server/modules/profiles';
+import { createMarketplaceRouter } from './server/modules/marketplace';
+import { createEventsRouter } from './server/modules/events';
+import { createVenuesRouter } from './server/modules/venues';
+import { createProductionRouter } from './server/modules/production';
+import { createEcosystemRouter } from './server/modules/ecosystem';
+import { createCommunicationsRouter } from './server/modules/communications';
+import { createAdminRouter } from './server/modules/admin';
+import { createMediaRouter } from './server/modules/media';
+import { createGeoRouter } from './server/modules/geo';
+import { createDirectoryRouter } from './server/modules/directory';
+import { createSocialRouter } from './server/modules/social';
+import { createFeedRouter } from './server/modules/feed';
+import { createStorageAdapter, getUploadRoot } from './server/services/storageAdapter';
+
+export function createApp(options?: { dbPath?: string; uploadDir?: string }): { app: Express; db: DbInstance } {
+  const db = openDatabase(options?.dbPath);
+  initSchema(db);
+  seedDatabase(db);
+
+  const storageAdapter = createStorageAdapter(options?.uploadDir);
+  const uploadRoot = getUploadRoot(options?.uploadDir);
+
+  const app = express();
+  app.set('trust proxy', 1);
+  app.use(express.json({ limit: '5mb' }));
+  app.use(cookieParser());
+  app.use(attachSessionUser(db));
+
+  app.use(
+    '/uploads',
+    express.static(uploadRoot, {
+      dotfiles: 'deny',
+      maxAge: '7d',
+      setHeaders: (res) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    })
+  );
+
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'sanatsahnede-api',
+      dbSchemaVersion: getSchemaVersion(db),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.use('/api/auth', createAuthRouter(db));
+  app.use('/api/media', createMediaRouter(db, storageAdapter));
+  app.use('/api/geo', createGeoRouter(db));
+  app.use('/api/social', createSocialRouter(db));
+  app.use('/api/feed', createFeedRouter(db));
+  app.use('/api', createDirectoryRouter(db));
+  app.use('/api', createBootstrapRouter(db));
+  app.use('/api', createProfilesRouter(db));
+  app.use('/api', createMarketplaceRouter(db));
+  app.use('/api/events', createEventsRouter(db));
+  app.use('/api', createVenuesRouter(db));
+  app.use('/api', createProductionRouter(db));
+  app.use('/api', createEcosystemRouter(db));
+  app.use('/api', createCommunicationsRouter(db));
+  app.use('/api/admin', createAdminRouter(db));
+
+  app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[API Error]', err);
+    if (res.headersSent) return;
+    const status = typeof err?.status === 'number' ? err.status : 500;
+    res.status(status).json({
+      error: status >= 500 ? 'Sunucu geçici bir hata ile karşılaştı.' : err?.message || 'İstek işlenemedi.',
+    });
+  });
+
+  return { app, db };
+}
+
+async function startServer() {
+  const { app } = createApp();
+  const isProd = process.env.NODE_ENV === 'production';
+
+  app.use('/src/assets/images', express.static(path.resolve(process.cwd(), 'src/assets/images')));
+
+  if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distDir = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  }
+
+  const port = Number(process.env.PORT || 3000);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`SanatSahnede full-stack server running on http://0.0.0.0:${port}`);
+  });
+}
+
+const isDirectExecution =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectExecution && process.env.NODE_ENV !== 'test') {
+  startServer().catch((err) => {
+    console.error('Failed to start SanatSahnede server:', err);
+    process.exit(1);
+  });
+}

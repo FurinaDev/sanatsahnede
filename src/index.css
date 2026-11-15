@@ -1,0 +1,136 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #DE5626;
+  --color-primary-hover: #c2451a;
+  --color-secondary: #162956;
+  --color-navy-brand: #162956;
+  --color-navy-dark: #0f1d3e;
+  --color-navy-light: #1e356b;
+  --color-background-light: #F2F4F8;
+  --color-background-dark: #0c1527;
+  --color-card-light: #ffffff;
+  --color-card-dark: #13213e;
+  --color-border-light: #E2E8F0;
+  --color-border-dark: #1e335a;
+  --font-display: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-hero: 'Syne', 'Poppins', sans-serif;
+  --font-handwriting: 'Sacramento', cursive;
+}
+
+@layer base {
+  :root {
+    --surface: #F2F4F8;
+    --surface-canvas: #F2F4F8;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #F2F4F8;
+    --surface-container: #E2E8F0;
+    --on-surface: #0f172a;
+    --on-surface-variant: #475569;
+    --outline: #64748b;
+    --border-hairline: #E2E8F0;
+    --primary: #DE5626;
+    --secondary: #162956;
+  }
+
+  .dark {
+    --surface: #0c1527;
+    --surface-canvas: #0c1527;
+    --surface-container-lowest: #13213e;
+    --surface-container-low: #162038;
+    --surface-container: #1e335a;
+    --on-surface: #f8fafc;
+    --on-surface-variant: #94a3b8;
+    --outline: #64748b;
+    --border-hairline: #1e335a;
+  }
+
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--surface-canvas);
+    color: var(--on-surface);
+    overflow-x: clip;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+}
+
+.font-hero {
+  font-family: 'Syne', 'Poppins', sans-serif;
+}
+
+.font-handwriting {
+  font-family: 'Sacramento', cursive;
+}
+
+.font-display {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-body {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.label-caps {
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tag-meta {
+  font-family: 'Poppins', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.03em;
+}
+
+/* Single-Layer Elevation Shadows */
+.elevation-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.elevation-dock {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+/* Animated Equalizer Bars for Audio Preview Pills */
+@keyframes eq-jump-1 {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+@keyframes eq-jump-2 {
+  0%, 100% { transform: scaleY(0.85); }
+  45% { transform: scaleY(0.35); }
+  75% { transform: scaleY(1); }
+}
+@keyframes eq-jump-3 {
+  0%, 100% { transform: scaleY(0.5); }
+  60% { transform: scaleY(0.95); }
+}
+
+.eq-bar-1 {
+  transform-origin: bottom;
+  animation: eq-jump-1 0.75s ease-in-out infinite;
+}
+.eq-bar-2 {
+  transform-origin: bottom;
+  animation: eq-jump-2 0.65s ease-in-out infinite;
+}
+.eq-bar-3 {
+  transform-origin: bottom;
+  animation: eq-jump-3 0.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar-1, .eq-bar-2, .eq-bar-3 {
+    animation: none;
+  }
+}
