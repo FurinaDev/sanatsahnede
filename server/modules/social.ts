@@ -10,6 +10,7 @@ import {
 } from '../services/socialGraphService';
 import { notifyUser } from '../services/notificationService';
 import { logAudit } from '../services/auditService';
+import { newId } from '../utils/crypto';
 
 export function createSocialRouter(db: DbInstance): Router {
   const router = Router();
