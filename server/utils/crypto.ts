@@ -59,6 +59,12 @@ export function slugify(input: string): string {
       .replace(/(^-|-$)+/g, '') || `item-${Date.now()}`
   );
 }
+
+// Backward-compatible alias used by the community module.
+export function slugifyTr(input: string): string {
+  return slugify(input);
+}
+
 export function getSessionSecret(): string {
   const configured = process.env.SESSION_SECRET?.trim();
 
