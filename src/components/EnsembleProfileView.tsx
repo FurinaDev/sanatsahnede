@@ -74,22 +74,13 @@ export const EnsembleProfileView: React.FC<Props> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/85 via-[#0f172a]/25 to-transparent" />
         </div>
 
-        <div className="px-5 sm:px-8 pb-8 pt-4 relative bg-white dark:bg-[#13213e]">
+        <div className="px-6 sm:px-8 pb-8 pt-4 relative bg-white dark:bg-[#13213e]">
           <div className="flex flex-wrap items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
             <div className="relative shrink-0">
               <img
                 src={ensemble.avatarUrl}
                 alt={ensemble.name}
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-white dark:border-[#13213e] shadow-xl bg-[#f8fafc] dark:bg-[#0f1c38]"
-              />
-            </div>
-
-            <div className="pt-2">
-              <SocialActionBar
-                targetUserId={ensemble.leaderUserId}
-                targetName={ensemble.name}
-                followersCount={ensemble.followersCount}
-                onBlocked={onBack}
               />
             </div>
           </div>
@@ -104,12 +95,12 @@ export const EnsembleProfileView: React.FC<Props> = ({
                   <VerifiedBadge label="Doğrulanmış Topluluk" size="lg" />
                 )}
                 {ensemble.isRecommended && (
-                  <span className="text-[11px] font-bold text-white bg-[#f25922] px-2.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-[#f25922] px-2.5 py-0.5 rounded-md">
                     Öne Çıkan Topluluk
                   </span>
                 )}
               </div>
-              <div className="text-sm font-semibold text-[#f25922]">
+              <div className="text-sm font-semibold text-[#ad3300] dark:text-[#ffb59e]">
                 {ensemble.ensembleType} · Kuruluş: {ensemble.foundedYear}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569] dark:text-slate-300">
@@ -120,28 +111,71 @@ export const EnsembleProfileView: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Metrics */}
-            <div className="grid grid-cols-3 gap-4 text-center sm:text-right bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] self-stretch sm:self-start lg:self-auto tabular-nums">
-              <div className="space-y-0.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">Puan</div>
-                <div className="flex items-center justify-center sm:justify-end gap-1 font-display font-extrabold text-[#0f172a] dark:text-white text-lg">
-                  <Star className="w-4 h-4 text-[#f25922] fill-[#f25922]" />
-                  <span>{ensemble.ratingAvg.toFixed(2)}</span>
+            {/* Metrics & Followers Block */}
+            <div className="bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] self-stretch sm:self-start lg:self-auto space-y-3">
+              <div className="flex items-center justify-end pb-2.5 border-b border-[#e2e8f0] dark:border-[#1e335a]">
+                <SocialActionBar
+                  statsOnly
+                  targetUserId={ensemble.leaderUserId}
+                  targetName={ensemble.name}
+                  followersCount={ensemble.followersCount}
+                  followingCount={ensemble.followingCount ?? 0}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center sm:text-right tabular-nums">
+                <div className="space-y-0.5">
+                  <div className="label-caps text-[#64748b] dark:text-slate-400">Değerlendirme</div>
+                  <div className="flex items-center justify-center sm:justify-end gap-1 font-display font-extrabold text-[#0f172a] dark:text-white text-lg">
+                    <Star className="w-4 h-4 text-[#f25922] fill-[#f25922]" />
+                    <span>{ensemble.ratingAvg.toFixed(2)}</span>
+                  </div>
+                  <div className="text-[10px] text-[#64748b] dark:text-slate-400">{ensemble.ratingCount} Yorum</div>
                 </div>
-                <div className="text-[10px] text-[#64748b] dark:text-slate-400">{ensemble.ratingCount} Değerlendirme</div>
-              </div>
 
-              <div className="space-y-0.5 border-x border-[#e2e8f0] dark:border-[#1e335a] px-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">İş Sayısı</div>
-                <div className="font-display font-extrabold text-[#0f172a] dark:text-white text-lg">{ensemble.completedJobsCount}</div>
-                <div className="text-[10px] text-[#64748b] dark:text-slate-400">Konser</div>
-              </div>
+                <div className="space-y-0.5 border-x border-[#e2e8f0] dark:border-[#1e335a] px-2 sm:px-3">
+                  <div className="label-caps text-[#64748b] dark:text-slate-400">Tamamlanan</div>
+                  <div className="font-display font-extrabold text-[#0f172a] dark:text-white text-lg">{ensemble.completedJobsCount}</div>
+                  <div className="text-[10px] text-[#64748b] dark:text-slate-400">Konser</div>
+                </div>
 
-              <div className="space-y-0.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">İptal Oranı</div>
-                <div className="font-display font-extrabold text-lg text-emerald-600 dark:text-emerald-400">%{ensemble.cancellationRate}</div>
-                <div className="text-[10px] text-[#64748b] dark:text-slate-400">Güvenilir</div>
+                <div className="space-y-0.5">
+                  <div className="label-caps text-[#64748b] dark:text-slate-400">İptal Oranı</div>
+                  <div className="font-display font-extrabold text-lg text-emerald-700 dark:text-emerald-400">%{ensemble.cancellationRate}</div>
+                  <div className="text-[10px] text-[#64748b] dark:text-slate-400">Güvenilir</div>
+                </div>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-[#e2e8f0] dark:border-[#1e335a] flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="font-bold text-[#0f172a] dark:text-white">Disiplin:</span>
+              <span className="font-semibold text-[#16274e] dark:text-slate-200 bg-[#f1f3ff] dark:bg-[#0f1c38] px-2.5 py-1 rounded-md border border-[#e2e8f0] dark:border-[#1e335a]">
+                {ensemble.discipline || 'Müzik'}
+              </span>
+              {ensemble.genres.length > 0 && (
+                <>
+                  <span aria-hidden="true" className="text-[#cbd5e1] dark:text-slate-600">·</span>
+                  <span className="font-bold text-[#0f172a] dark:text-white">Türler:</span>
+                  {ensemble.genres.map((g) => (
+                    <span key={g} className="font-semibold text-[#ad3300] dark:text-[#ffb59e] bg-orange-50 dark:bg-[#f25922]/15 px-2.5 py-1 rounded-md">
+                      {g}
+                    </span>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className="ml-auto">
+              <SocialActionBar
+                hideStats
+                targetUserId={ensemble.leaderUserId}
+                targetName={ensemble.name}
+                followersCount={ensemble.followersCount}
+                followingCount={ensemble.followingCount ?? 0}
+                onBlocked={onBack}
+              />
             </div>
           </div>
         </div>

@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { selectRecommendedTalents } from '../utils/platformStats';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   Star,
-  ShieldCheck,
   MapPin,
   ChevronRight,
   ArrowRight,
@@ -110,7 +110,10 @@ export const RecommendationsStrip: React.FC = () => {
                           {item.name}
                         </h3>
                         {item.isVerified && (
-                          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <VerifiedBadge
+                            size="sm"
+                            label={item.kind === 'ensemble' ? 'Doğrulanmış Topluluk' : 'Doğrulanmış Sanatçı'}
+                          />
                         )}
                       </div>
                       <p className="text-xs font-medium text-[#8B4A32] dark:text-[#ffb59e] truncate mt-0.5">

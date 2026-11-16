@@ -13,6 +13,7 @@ import {
 import { ArchitecturalPageHeader } from './ui/ArchitecturalPageHeader';
 import { CustomSelect } from './ui/CustomSelect';
 import { PaginationBar } from './ui/PaginationBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   Filter,
   Star,
@@ -28,6 +29,7 @@ import {
   Layers,
   Award,
   ArrowRight,
+  Hash,
 } from 'lucide-react';
 
 const ENSEMBLE_FORMATS: (EnsembleType | 'Tümü')[] = [
@@ -455,6 +457,15 @@ export const EnsemblesDirectoryView: React.FC = () => {
                 <span>{filteredEnsembles.length} Topluluk &amp; Kolektif</span>
               </span>
 
+              <button
+                type="button"
+                onClick={() => navigateTo('communities')}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-orange-50 dark:bg-[#f25922]/15 text-[#d94b18] dark:text-[#ffb59e] border border-[#f25922]/30 text-xs font-bold hover:bg-[#f25922] hover:text-white transition-colors cursor-pointer"
+              >
+                <Hash className="w-3.5 h-3.5" />
+                <span>Topluluk Kanalları</span>
+              </button>
+
               {activeFilterChips.map((chip) => (
                 <button
                   key={chip.key}
@@ -630,17 +641,20 @@ export const EnsemblesDirectoryView: React.FC = () => {
                                   <Users className="w-3 h-3 text-[#ffb59e] shrink-0" />
                                   <span>{ensemble.members.length} Üye · {disc}</span>
                                 </span>
-
-                                {ensemble.isVerified && (
-                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
                               </div>
                             </div>
 
                             <div className="p-3.5 space-y-2">
-                              <h3 className="font-bold text-[13px] text-[#0f172a] dark:text-white group-hover:text-[#f25922] transition-colors line-clamp-2 min-h-[2.25rem] leading-snug">
-                                {ensemble.name}
-                              </h3>
+                              <div className="flex items-start gap-1.5 min-w-0">
+                                <h3 className="font-bold text-[13px] text-[#0f172a] dark:text-white group-hover:text-[#f25922] transition-colors line-clamp-2 min-h-[2.25rem] leading-snug">
+                                  {ensemble.name}
+                                </h3>
+                                {ensemble.isVerified && (
+                                  <span className="mt-0.5 shrink-0">
+                                    <VerifiedBadge size="sm" label="Doğrulanmış Topluluk" />
+                                  </span>
+                                )}
+                              </div>
 
                               <div className="flex items-center gap-1 text-[11px] text-[#64748b] dark:text-slate-400 truncate">
                                 <MapPin className="w-3 h-3 shrink-0 text-[#f25922]" />
@@ -688,7 +702,7 @@ export const EnsemblesDirectoryView: React.FC = () => {
                                 {ensemble.name}
                               </span>
                               {ensemble.isVerified && (
-                                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <VerifiedBadge size="sm" label="Doğrulanmış Topluluk" />
                               )}
                               <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
                                 {ensemble.ensembleType}

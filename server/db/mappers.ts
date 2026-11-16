@@ -89,6 +89,7 @@ export function mapIndividualProfile(row: any, socialCounts?: ProfileSocialCount
     website: row.website ?? undefined,
     socialLinks: parseJson(row.social_links_json, {}),
     isVerified: Boolean(row.is_verified),
+    verifiedLabel: row.verified_label || undefined,
     verificationStatus: row.verification_status,
     verificationDocUrl: row.verification_doc_url ?? undefined,
     ratingAvg: Number(row.rating_avg || 0),
@@ -205,6 +206,7 @@ export function mapEnsemble(db: DbInstance, row: any, socialCounts?: ProfileSoci
     coverUrl: row.cover_url ?? undefined,
     website: row.website ?? undefined,
     isVerified: Boolean(row.is_verified),
+    verifiedLabel: row.verified_label || undefined,
     verificationStatus: row.verification_status,
     ratingAvg: Number(row.rating_avg || 0),
     ratingCount: Number(row.rating_count || 0),
@@ -214,6 +216,7 @@ export function mapEnsemble(db: DbInstance, row: any, socialCounts?: ProfileSoci
     recommendationPeriod: row.recommendation_period ?? undefined,
     recommendationBadge: row.recommendation_badge ?? undefined,
     followersCount: socialCounts?.followersCount ?? 0,
+    followingCount: socialCounts?.followingCount ?? 0,
     createdAt: row.created_at,
   };
 }
@@ -244,6 +247,7 @@ export function mapBusinessProfile(
     logoUrl: row.logo_url,
     coverUrl: row.cover_url ?? undefined,
     isVerified: Boolean(row.is_verified),
+    verifiedLabel: row.verified_label || undefined,
     verificationStatus: row.verification_status,
     verificationDocUrl: row.verification_doc_url ?? undefined,
     ratingAvg: Number(row.rating_avg || 0),
@@ -254,6 +258,7 @@ export function mapBusinessProfile(
     recommendationBadge: row.recommendation_badge ?? undefined,
     activeListingsCount,
     followersCount: socialCounts?.followersCount ?? 0,
+    followingCount: socialCounts?.followingCount ?? 0,
     ...(() => {
       const fallback = resolveLocalTurkishCoordinates(row.city, row.district);
       return {

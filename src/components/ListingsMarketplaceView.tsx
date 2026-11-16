@@ -16,6 +16,7 @@ import {
 import { ArchitecturalPageHeader } from './ui/ArchitecturalPageHeader';
 import { CustomSelect } from './ui/CustomSelect';
 import { PaginationBar } from './ui/PaginationBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   Filter,
   Calendar,
@@ -783,7 +784,7 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                                 <div className="flex items-center gap-1 text-[11px] font-bold text-[#0f172a] dark:text-white truncate">
                                   <span className="truncate">{listing.businessName}</span>
                                   {listing.businessVerified && (
-                                    <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1 text-[10px] text-[#64748b] dark:text-slate-400 truncate">
@@ -881,7 +882,7 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                                   {listing.businessName}
                                 </span>
                                 {listing.businessVerified && (
-                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />
                                 )}
                                 <span>·</span>
                                 <span>{resolveDiscipline(listing.discipline)}</span>

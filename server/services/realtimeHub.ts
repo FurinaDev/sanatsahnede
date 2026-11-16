@@ -12,6 +12,7 @@ export interface RealtimeHub {
   attachToServer: (server: http.Server) => void;
   sendToUser: (userId: string, event: { type: string; payload: any }) => void;
   sendToUsers: (userIds: string[], event: { type: string; payload: any }) => void;
+  sendToCommunity: (communityId: string, memberUserIds: string[], event: { type: string; payload: any }) => void;
   isUserOnline: (userId: string) => boolean;
   getOnlineUserIds: () => string[];
   closeAll: () => void;
@@ -80,6 +81,7 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
   const wss = new WebSocketServer({ noServer: true });
   const userSockets = new Map<string, Set<WebSocket>>();
   const socketToUser = new Map<WebSocket, User>();
+  const communitySockets = new Map<string, Set<WebSocket>>();
   const attachedServers = new WeakSet<http.Server>();
 
   const sendRaw = (ws: WebSocket, event: { type: string; payload: any }) => {
@@ -109,6 +111,33 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
     const unique = new Set(userIds.filter(Boolean));
     for (const uid of unique) {
       sendToUser(uid, event);
+    }
+  };
+
+  const sendToCommunity = (
+    communityId: string,
+    memberUserIds: string[],
+    event: { type: string; payload: any }
+  ) => {
+    const delivered = new Set<WebSocket>();
+    const roomSockets = communitySockets.get(communityId);
+    if (roomSockets) {
+      for (const ws of roomSockets) {
+        if (!delivered.has(ws)) {
+          delivered.add(ws);
+          sendRaw(ws, event);
+        }
+      }
+    }
+    for (const uid of new Set(memberUserIds.filter(Boolean))) {
+      const sockets = userSockets.get(uid);
+      if (!sockets) continue;
+      for (const ws of sockets) {
+        if (!delivered.has(ws)) {
+          delivered.add(ws);
+          sendRaw(ws, event);
+        }
+      }
     }
   };
 
@@ -194,6 +223,29 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
             },
           });
         }
+
+        if (msg.type === 'community:subscribe') {
+          const cid = String(msg.payload?.communityId || '');
+          if (!cid) return;
+          let set = communitySockets.get(cid);
+          if (!set) {
+            set = new Set();
+            communitySockets.set(cid, set);
+          }
+          set.add(ws);
+          return;
+        }
+
+        if (msg.type === 'community:unsubscribe') {
+          const cid = String(msg.payload?.communityId || '');
+          if (!cid) return;
+          const set = communitySockets.get(cid);
+          if (set) {
+            set.delete(ws);
+            if (set.size === 0) communitySockets.delete(cid);
+          }
+          return;
+        }
       } catch {
         // Ignore malformed client frames
       }
@@ -201,6 +253,10 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
 
     ws.on('close', () => {
       socketToUser.delete(ws);
+      for (const [cid, set] of communitySockets.entries()) {
+        set.delete(ws);
+        if (set.size === 0) communitySockets.delete(cid);
+      }
       const existing = userSockets.get(user.id);
       if (existing) {
         existing.delete(ws);
@@ -259,6 +315,7 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
     }
     userSockets.clear();
     socketToUser.clear();
+    communitySockets.clear();
     wss.close();
   };
 
@@ -266,6 +323,7 @@ export function createRealtimeHub(db: DbInstance): RealtimeHub {
     attachToServer,
     sendToUser,
     sendToUsers,
+    sendToCommunity,
     isUserOnline,
     getOnlineUserIds,
     closeAll,

@@ -286,12 +286,6 @@ export const ArtistProfileView: React.FC<Props> = ({ artistId = 'artist_efe_ozka
                   </>
                 )}
               </div>
-              {!isPrivateForViewer && artist.isAvailableThisWeek && artist.availabilityNote && (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
-                  <CalendarCheck2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>{artist.availabilityNote}</span>
-                </div>
-              )}
             </div>
 
             <div className="bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] self-stretch sm:self-start lg:self-auto space-y-3">

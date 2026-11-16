@@ -7,6 +7,7 @@ import { ART_DISCIPLINES, CITY_LIST } from '../utils/disciplineConfig';
 import { ArchitecturalPageHeader } from './ui/ArchitecturalPageHeader';
 import { CustomSelect } from './ui/CustomSelect';
 import { PaginationBar } from './ui/PaginationBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   Filter,
   ShieldCheck,
@@ -550,16 +551,7 @@ export const BusinessesDirectoryView: React.FC = () => {
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/90 via-[#0f172a]/20 to-transparent" />
 
-                              <div className="absolute top-2 inset-x-2 flex items-center justify-between gap-1 z-10">
-                                {biz.isVerified ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#16274e]/95 text-emerald-300 text-[9px] font-bold">
-                                    <ShieldCheck className="w-3 h-3" />
-                                    <span>Onaylı</span>
-                                  </span>
-                                ) : (
-                                  <span />
-                                )}
-
+                              <div className="absolute top-2 inset-x-2 flex items-center justify-end gap-1 z-10">
                                 <span className="px-2 py-0.5 rounded-md bg-[#f25922] text-white text-[9px] font-bold tabular-nums">
                                   {activeListingCount > 0 ? `${activeListingCount} Aktif İlan` : 'Mekân'}
                                 </span>
@@ -581,9 +573,16 @@ export const BusinessesDirectoryView: React.FC = () => {
                             </div>
 
                             <div className="p-3.5 space-y-2">
-                              <h3 className="font-bold text-[13px] text-[#0f172a] dark:text-white group-hover:text-[#f25922] transition-colors line-clamp-2 min-h-[2.25rem] leading-snug">
-                                {biz.businessName}
-                              </h3>
+                              <div className="flex items-start gap-1.5 min-w-0">
+                                <h3 className="font-bold text-[13px] text-[#0f172a] dark:text-white group-hover:text-[#f25922] transition-colors line-clamp-2 min-h-[2.25rem] leading-snug">
+                                  {biz.businessName}
+                                </h3>
+                                {biz.isVerified && (
+                                  <span className="mt-0.5 shrink-0">
+                                    <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[11px] font-medium text-[#64748b] dark:text-slate-400 truncate">
                                 {biz.businessType}
                               </div>
@@ -636,7 +635,7 @@ export const BusinessesDirectoryView: React.FC = () => {
                                   {biz.businessName}
                                 </span>
                                 {biz.isVerified && (
-                                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />
                                 )}
                                 <span className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-[#f25922]/15 text-[#f25922] text-[10px] font-bold">
                                   {biz.businessType}

@@ -121,6 +121,7 @@ export type AppView =
   | 'culture_desk'
   | 'originals'
   | 'messages'
+  | 'communities'
   | 'feed'
   | 'how_it_works'
   | 'events'
@@ -286,6 +287,12 @@ interface AppContextType {
   adminUpdateUserStatus: (userId: string, status: 'active' | 'suspended') => AsyncActionResult;
   adminVerifyVenue: (venueId: string, isVerified: boolean) => AsyncActionResult;
   adminVerifyTechnicalProvider: (providerId: string, isVerified: boolean) => AsyncActionResult;
+  adminVerifyEntity: (
+    entityType: 'artist' | 'ensemble' | 'business' | 'community' | 'venue' | 'technical_provider',
+    id: string,
+    isVerified: boolean,
+    note?: string
+  ) => AsyncActionResult;
   moderateEntity: (entityType: 'listing' | 'event' | 'opportunity' | 'project', id: string, decision: 'approve' | 'reject') => AsyncActionResult;
   moderateEventAnnouncement: (eventId: string, status: 'published' | 'rejected') => AsyncActionResult;
   resolveDispute: (disputeId: string, outcome: 'resolved_refund' | 'resolved_release', resolutionNote: string) => AsyncActionResult;
@@ -778,6 +785,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (clean === '/originals') return { view: 'originals', entityId: null };
       if (clean === '/akis') return { view: 'feed', entityId: null };
       if (clean === '/mesajlar') return { view: 'messages', entityId: null };
+      if (clean === '/kanallar') return { view: 'communities', entityId: null };
+      if (clean.startsWith('/kanallar/')) {
+        const param = decodeURIComponent(clean.slice('/kanallar/'.length));
+        return { view: 'communities', entityId: param };
+      }
       if (clean === '/iletisim') return { view: 'contact', entityId: null };
       if (clean === '/hakkimizda') return { view: 'about', entityId: null };
       if (clean === '/ekibimiz') return { view: 'team', entityId: null };
@@ -833,6 +845,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       case 'originals': return '/originals';
       case 'feed': return '/akis';
       case 'messages': return '/mesajlar';
+      case 'communities': return entityId ? `/kanallar/${entityId}` : '/kanallar';
       case 'contact': return '/iletisim';
       case 'about': return '/hakkimizda';
       case 'team': return '/ekibimiz';
@@ -1265,6 +1278,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminVerifyTechnicalProvider = (providerId: string, isVerified: boolean) =>
     wrap(() => apiRequest(`/api/admin/technical-providers/${providerId}/verify`, { method: 'POST', body: { isVerified } }));
 
+  const adminVerifyEntity = (
+    entityType: 'artist' | 'ensemble' | 'business' | 'community' | 'venue' | 'technical_provider',
+    id: string,
+    isVerified: boolean,
+    note?: string
+  ) =>
+    wrap(() =>
+      apiRequest(`/api/admin/entities/${entityType}/${id}/verify`, {
+        method: 'POST',
+        body: { isVerified, note },
+      })
+    );
+
   const moderateEntity = (entityType: 'listing' | 'event' | 'opportunity' | 'project', id: string, decision: 'approve' | 'reject') =>
     wrap(() => apiRequest(`/api/admin/moderation/${entityType}/${id}`, { method: 'POST', body: { decision } }));
 
@@ -1680,6 +1706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUpdateUserStatus,
         adminVerifyVenue,
         adminVerifyTechnicalProvider,
+        adminVerifyEntity,
         moderateEntity,
         moderateEventAnnouncement,
         resolveDispute,

@@ -152,6 +152,7 @@ export interface IndividualProfile {
   website?: string;
   socialLinks?: { instagram?: string; youtube?: string; linkedin?: string };
   isVerified: boolean;
+  verifiedLabel?: string;
   verificationStatus: VerificationStatus;
   verificationDocUrl?: string;
   ratingAvg: number;
@@ -210,6 +211,7 @@ export interface Ensemble {
   coverUrl?: string;
   website?: string;
   isVerified: boolean;
+  verifiedLabel?: string;
   verificationStatus: VerificationStatus;
   ratingAvg: number;
   ratingCount: number;
@@ -219,6 +221,7 @@ export interface Ensemble {
   recommendationPeriod?: 'weekly' | 'monthly';
   recommendationBadge?: string;
   followersCount?: number;
+  followingCount?: number;
   createdAt: string;
 }
 
@@ -243,6 +246,7 @@ export interface BusinessProfile {
   logoUrl: string;
   coverUrl?: string;
   isVerified: boolean;
+  verifiedLabel?: string;
   verificationStatus: VerificationStatus;
   verificationDocUrl?: string;
   ratingAvg: number;
@@ -255,6 +259,7 @@ export interface BusinessProfile {
   latitude?: number;
   longitude?: number;
   followersCount?: number;
+  followingCount?: number;
   createdAt: string;
 }
 
@@ -946,7 +951,13 @@ export interface RealtimeEvent {
     | 'conversation:created'
     | 'conversation:updated'
     | 'conversation:read'
-    | 'notification:created';
+    | 'notification:created'
+    | 'community:channel_created'
+    | 'community:message_created'
+    | 'community:message_updated'
+    | 'community:message_deleted'
+    | 'community:message_reaction'
+    | 'community:member_updated';
   payload: any;
   timestamp: string;
 }
@@ -1118,5 +1129,79 @@ export interface FeedPost {
   updatedAt: string;
 }
 
+export interface CommunityChannel {
+  id: string;
+  communityId: string;
+  slug: string;
+  name: string;
+  description: string;
+  channelType: 'announcement' | 'discussion';
+  isReadonly: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface CommunityMember {
+  userId: string;
+  name: string;
+  avatarUrl: string;
+  activeRole: RoleType;
+  communityRole: 'owner' | 'moderator' | 'member';
+  isMuted: boolean;
+  isVerified: boolean;
+  isOnline: boolean;
+  joinedAt: string;
+}
+
+export interface CommunityMessage {
+  id: string;
+  channelId: string;
+  communityId: string;
+  senderUserId: string;
+  senderName: string;
+  senderAvatar: string;
+  senderRole: 'owner' | 'moderator' | 'member';
+  body: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  replyToMessageId?: string;
+  replyToSnippet?: {
+    id: string;
+    senderName: string;
+    body: string;
+  };
+  reactions: Record<string, string[]>;
+  isPinned: boolean;
+  deletedAt?: string;
+  createdAt: string;
+}
+
+export interface Community {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  discipline: ArtDiscipline;
+  city: string;
+  avatarUrl: string;
+  coverUrl: string;
+  visibility: 'public' | 'private_invite';
+  ownerUserId: string;
+  ownerName: string;
+  ownerIsOnline: boolean;
+  isVerified: boolean;
+  verifiedLabel: string;
+  memberCount: number;
+  myRole: 'owner' | 'moderator' | 'member' | null;
+  isMuted: boolean;
+  channels: CommunityChannel[];
+  lastMessagePreview?: {
+    senderName: string;
+    body: string;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+}
 
 

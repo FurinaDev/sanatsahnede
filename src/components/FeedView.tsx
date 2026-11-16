@@ -408,25 +408,25 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
   const isStaff = isAuthenticated && ['admin', 'moderator'].includes(currentUser.activeRole);
 
   return (
-    <div className="max-w-[920px] mx-auto px-4 sm:px-6 py-8 space-y-6 text-left">
+    <div className="max-w-[660px] mx-auto px-3 sm:px-4 py-3 space-y-3 text-left overflow-x-hidden">
       {/* Header */}
-      <div className="bg-white dark:bg-[#13213e] rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] p-6 sm:p-8 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] p-3 sm:p-3.5 shadow-xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
-            <span className="label-caps text-[#E45424]">Kültür &amp; Sahne Topluluğu</span>
-            <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#162956] dark:text-white tracking-tight mt-0.5">
+            <span className="label-caps text-[#E45424] text-[9.5px]">Kültür &amp; Sahne Topluluğu</span>
+            <h1 className="font-display text-lg sm:text-xl font-extrabold text-[#162956] dark:text-white tracking-tight mt-0.5">
               Sanat Sahnede Akışı
             </h1>
-            <p className="text-xs sm:text-sm text-[#475569] dark:text-slate-300 mt-1">
-              Sanatçılardan, topluluklardan ve mekânlardan sahne arkası, yeni projeler, etkinlikler ve paylaşımlar.
+            <p className="text-[11.5px] text-[#475569] dark:text-slate-300 mt-0.5">
+              Sanatçılardan, topluluklardan ve mekânlardan sahne arkası, yeni projeler ve paylaşımlar.
             </p>
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-[#F2F4F8] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] self-start shrink-0">
+          <div className="inline-flex p-0.5 rounded-xl bg-[#F2F4F8] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] self-start shrink-0">
             <button
               type="button"
               onClick={() => setScope('all')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 scope === 'all'
                   ? 'bg-[#162956] dark:bg-[#E45424] text-white'
                   : 'text-[#475569] dark:text-slate-300'
@@ -443,7 +443,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 }
                 setScope('following');
               }}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 scope === 'following'
                   ? 'bg-[#162956] dark:bg-[#E45424] text-white'
                   : 'text-[#475569] dark:text-slate-300'
@@ -455,14 +455,14 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
         </div>
 
         {/* Search & Discipline Filter */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-[#e2e8f0] dark:border-[#1e335a]">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#1e335a]">
+          <div className="flex flex-wrap items-center gap-1">
             {ART_DISCIPLINES.map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => setDisciplineFilter(d)}
-                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-colors cursor-pointer ${
                   disciplineFilter === d
                     ? 'bg-[#E45424] text-white border-[#E45424]'
                     : 'bg-[#f8fafc] dark:bg-[#0f1c38] text-[#475569] dark:text-slate-300 border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424]/50'
@@ -473,15 +473,15 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
             ))}
           </div>
 
-          <div className="relative w-full md:w-64 shrink-0">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative w-full md:w-52 shrink-0">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="search"
               aria-label="Akışta ara"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Akışta veya #etikette ara..."
-              className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs text-[#0f172a] dark:text-white focus:outline-hidden focus:border-[#E45424]"
+              className="w-full pl-8 pr-2.5 py-1 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11.5px] text-[#0f172a] dark:text-white focus:outline-hidden focus:border-[#E45424]"
             />
           </div>
         </div>
@@ -491,21 +491,21 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
       {isAuthenticated ? (
         <form
           onSubmit={handlePublishPost}
-          className="bg-white dark:bg-[#13213e] rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] p-5 sm:p-6 shadow-xs space-y-4"
+          className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] p-3 shadow-xs space-y-2"
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2.5">
             <img
               src={currentUser.avatarUrl}
               alt={currentUser.firstName}
-              className="w-10 h-10 rounded-xl object-cover border border-[#e2e8f0] dark:border-[#1e335a] shrink-0"
+              className="w-8 h-8 rounded-xl object-cover border border-[#e2e8f0] dark:border-[#1e335a] shrink-0"
             />
-            <div className="flex-1 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <select
                   aria-label="Paylaşım Türü"
                   value={composerPostType}
                   onChange={(e) => setComposerPostType(e.target.value as FeedPost['postType'])}
-                  className="px-2.5 py-1.5 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-bold text-[#162956] dark:text-white"
+                  className="px-2 py-1 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-bold text-[#162956] dark:text-white"
                 >
                   <option value="update">Sahne Günlüğü</option>
                   <option value="showcase">Vitrin &amp; Eser</option>
@@ -517,7 +517,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                   aria-label="Sanat Disiplini"
                   value={composerDiscipline}
                   onChange={(e) => setComposerDiscipline(e.target.value as ArtDiscipline)}
-                  className="px-2.5 py-1.5 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-bold text-[#162956] dark:text-white"
+                  className="px-2 py-1 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-bold text-[#162956] dark:text-white"
                 >
                   {ART_DISCIPLINES.filter((d): d is ArtDiscipline => d !== 'Tümü').map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -527,7 +527,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 <button
                   type="button"
                   onClick={() => setComposerVisibility((v) => (v === 'public' ? 'followers' : 'public'))}
-                  className="px-2.5 py-1.5 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-semibold text-[#475569] dark:text-slate-300 inline-flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] font-semibold text-[#475569] dark:text-slate-300 inline-flex items-center gap-1 cursor-pointer"
                 >
                   {composerVisibility === 'followers' ? (
                     <>
@@ -545,11 +545,11 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
 
               <textarea
                 id="feed-composer-body"
-                rows={3}
+                rows={2}
                 value={composerBody}
                 onChange={(e) => setComposerBody(e.target.value)}
                 placeholder="Sahne hazırlığından, yeni eserinizden veya bir iş birliği çağrısından bahsedin... (#caz #sahne)"
-                className="w-full p-3 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs sm:text-sm text-[#0f172a] dark:text-white focus:outline-hidden focus:border-[#E45424]"
+                className="w-full p-2 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs text-[#0f172a] dark:text-white focus:outline-hidden focus:border-[#E45424]"
               />
 
               {/* Repost Draft Banner */}
@@ -643,9 +643,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-xs font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[11px] font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer">
                     <ImageIcon className="w-3.5 h-3.5 text-[#E45424]" />
                     <span>{uploadingMedia ? 'Yükleniyor...' : 'Fotoğraf Ekle'}</span>
                     <input
@@ -662,7 +662,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                   <button
                     type="button"
                     onClick={() => setShowLinkBox((p) => !p)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-xs font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[11px] font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer"
                   >
                     <Link2 className="w-3.5 h-3.5 text-[#162956] dark:text-[#ffb59e]" />
                     <span>Bağlantı Ekle</span>
@@ -674,14 +674,14 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                     value={composerTagsInput}
                     onChange={(e) => setComposerTagsInput(e.target.value)}
                     placeholder="Etiketler (virgülle)"
-                    className="px-3 py-1.5 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs w-40"
+                    className="px-2.5 py-1 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11px] w-36"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submittingPost || uploadingMedia}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#E45424] hover:bg-[#c94317] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#E45424] hover:bg-[#c94317] text-white text-[11.5px] font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{submittingPost ? 'Paylaşılıyor...' : 'Akışta Paylaş'}</span>
@@ -691,15 +691,15 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
           </div>
         </form>
       ) : (
-        <div className="bg-white dark:bg-[#13213e] rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] p-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 text-xs sm:text-sm text-[#475569] dark:text-slate-300">
+        <div className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] p-3.5 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 text-xs text-[#475569] dark:text-slate-300">
             <Sparkles className="w-4 h-4 text-[#E45424] shrink-0" />
             <span>Kendi sahne güncellemelerinizi paylaşmak, tepki vermek ve yorum yazmak için giriş yapın.</span>
           </div>
           <button
             type="button"
             onClick={() => setAuthModalMode('login')}
-            className="px-4 py-2 rounded-xl bg-[#E45424] text-white text-xs font-bold cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-[#E45424] text-white text-[11.5px] font-bold cursor-pointer"
           >
             Giriş Yap
           </button>
@@ -730,7 +730,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
           </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-2.5">
           {posts.map((post) => {
             const canDelete = isAuthenticated && (post.authorUserId === currentUser.id || isStaff);
             const isCommentsOpen = Boolean(expandedComments[post.id]);
@@ -743,15 +743,15 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 ref={(el) => {
                   cardRefs.current[post.id] = el;
                 }}
-                className={`bg-white dark:bg-[#13213e] rounded-3xl border p-5 sm:p-6 shadow-xs space-y-4 transition-colors ${
+                className={`bg-white dark:bg-[#13213e] rounded-2xl border p-3 sm:p-3.5 shadow-xs space-y-2 min-w-0 transition-colors ${
                   isHighlighted
                     ? 'border-[#E45424] ring-2 ring-[#E45424]/25'
                     : 'border-[#e2e8f0] dark:border-[#1e335a]'
                 }`}
               >
                 {/* Author Header */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <button
                       type="button"
                       onClick={() =>
@@ -764,7 +764,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                       <img
                         src={post.authorAvatar || '/src/assets/images/artist_jazz_pianist_1794440057025.jpg'}
                         alt={post.authorName}
-                        className="w-11 h-11 rounded-2xl object-cover border border-[#e2e8f0] dark:border-[#1e335a]"
+                        className="w-8 h-8 rounded-xl object-cover border border-[#e2e8f0] dark:border-[#1e335a]"
                       />
                     </button>
                     <div className="min-w-0">
@@ -776,24 +776,24 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                             post.authorEntityId &&
                             navigateTo(post.authorProfileView as AppView, post.authorEntityId)
                           }
-                          className="font-display font-bold text-sm text-[#0f172a] dark:text-white hover:text-[#E45424] transition-colors cursor-pointer truncate"
+                          className="font-display font-bold text-[12.5px] text-[#0f172a] dark:text-white hover:text-[#E45424] transition-colors cursor-pointer truncate"
                         >
                           {post.authorName}
                         </button>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#f1f3ff] dark:bg-[#0f1c38] text-[#162956] dark:text-[#ffb59e] border border-[#e2e8f0] dark:border-[#1e335a]">
+                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-[#f1f3ff] dark:bg-[#0f1c38] text-[#162956] dark:text-[#ffb59e] border border-[#e2e8f0] dark:border-[#1e335a]">
                           {post.discipline}
                         </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#f8fafc] dark:bg-[#0f1c38] text-[#64748b] dark:text-slate-300">
+                        <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md bg-[#f8fafc] dark:bg-[#0f1c38] text-[#64748b] dark:text-slate-300">
                           {POST_TYPE_LABELS[post.postType]}
                         </span>
                         {post.visibility === 'followers' && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                            <Lock className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-amber-700 dark:text-amber-300">
+                            <Lock className="w-2.5 h-2.5" />
                             <span>Takipçiler</span>
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[#64748b] dark:text-slate-400 truncate mt-0.5">
+                      <div className="text-[10.5px] text-[#64748b] dark:text-slate-400 truncate mt-0.5">
                         {post.authorSubtitle ? `${post.authorSubtitle} · ` : ''}
                         <span>{formatRelativeDate(post.createdAt)}</span>
                       </div>
@@ -803,18 +803,18 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                   {canDelete && (
                     <div className="shrink-0">
                       {deleteConfirmId === post.id ? (
-                        <div className="flex items-center gap-1.5 text-[11px]">
+                        <div className="flex items-center gap-1 text-[10.5px]">
                           <button
                             type="button"
                             onClick={() => handleDeletePost(post.id)}
-                            className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold cursor-pointer"
+                            className="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-bold cursor-pointer"
                           >
                             Sil
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeleteConfirmId(null)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+                            className="px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
                           >
                             Vazgeç
                           </button>
@@ -824,9 +824,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                           type="button"
                           onClick={() => setDeleteConfirmId(post.id)}
                           aria-label="Paylaşımı sil"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -835,20 +835,20 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
 
                 {/* Body */}
                 {post.body && (
-                  <p className="text-xs sm:text-sm text-[#1e293b] dark:text-slate-200 leading-relaxed whitespace-pre-line">
+                  <p className="text-[12.5px] text-[#1e293b] dark:text-slate-200 leading-snug whitespace-pre-line break-words [overflow-wrap:anywhere]">
                     {post.body}
                   </p>
                 )}
 
                 {/* Tags */}
                 {post.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {post.tags.map((tag) => (
                       <button
                         key={tag}
                         type="button"
                         onClick={() => setSearchQuery(tag)}
-                        className="text-[11px] font-semibold text-[#E45424] hover:underline bg-orange-50/70 dark:bg-[#E45424]/10 px-2 py-0.5 rounded-md cursor-pointer"
+                        className="text-[10px] font-semibold text-[#E45424] hover:underline bg-orange-50/70 dark:bg-[#E45424]/10 px-1.5 py-0.5 rounded-md cursor-pointer"
                       >
                         #{tag}
                       </button>
@@ -860,7 +860,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 {post.media.length > 0 && (
                   <div className={`grid gap-2 ${post.media.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
                     {post.media.map((m) => (
-                      <div key={m.id} className="rounded-2xl overflow-hidden border border-[#e2e8f0] dark:border-[#1e335a] bg-[#0f172a] max-h-96">
+                      <div key={m.id} className="rounded-xl overflow-hidden border border-[#e2e8f0] dark:border-[#1e335a] bg-[#0f172a] max-h-52">
                         <img src={m.url} alt={m.caption || post.authorName} className="w-full h-full object-cover" />
                       </div>
                     ))}
@@ -873,11 +873,11 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                     href={post.linkPreview.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block p-3.5 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424]/60 transition-colors space-y-1"
+                    className="block p-2.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424]/60 transition-colors space-y-0.5"
                   >
                     <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase text-[#E45424]">
-                      <span>{post.linkPreview.domain}</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span className="truncate">{post.linkPreview.domain}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
                     </div>
                     <div className="text-xs font-bold text-[#0f172a] dark:text-white">{post.linkPreview.title}</div>
                     {post.linkPreview.description && (
@@ -893,10 +893,10 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                   <button
                     type="button"
                     onClick={() => handleRepostSummaryNavigate(post)}
-                    className="w-full text-left p-4 rounded-2xl bg-[#F2F4F8] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424] transition-colors space-y-1.5 cursor-pointer"
+                    className="w-full text-left p-3 rounded-xl bg-[#F2F4F8] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424] transition-colors space-y-1 cursor-pointer"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#E45424]">
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#E45424]">
                         {post.repostSummary.entityType === 'event'
                           ? 'Etkinlik Paylaşımı'
                           : post.repostSummary.entityType === 'listing'
@@ -906,21 +906,21 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                           : 'Paylaşım'}
                       </span>
                       {post.repostSummary.badge && (
-                        <span className="text-[11px] font-bold text-[#162956] dark:text-white bg-white dark:bg-[#13213e] px-2 py-0.5 rounded-md border border-[#e2e8f0] dark:border-[#1e335a]">
+                        <span className="text-[10.5px] font-bold text-[#162956] dark:text-white bg-white dark:bg-[#13213e] px-2 py-0.5 rounded-md border border-[#e2e8f0] dark:border-[#1e335a]">
                           {post.repostSummary.badge}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs sm:text-sm font-bold text-[#162956] dark:text-white">
+                    <div className="text-xs font-bold text-[#162956] dark:text-white">
                       {post.repostSummary.title}
                     </div>
                     {post.repostSummary.subtitle && (
-                      <div className="text-xs text-[#475569] dark:text-slate-300 line-clamp-2">
+                      <div className="text-[11.5px] text-[#475569] dark:text-slate-300 line-clamp-2">
                         {post.repostSummary.subtitle}
                       </div>
                     )}
                     {(post.repostSummary.city || post.repostSummary.date) && (
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#64748b] dark:text-slate-400 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-2.5 text-[10.5px] text-[#64748b] dark:text-slate-400 pt-0.5">
                         {post.repostSummary.city && (
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-[#E45424]" />
@@ -939,8 +939,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                 )}
 
                 {/* Actions Row */}
-                <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#1e335a] flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                <div className="pt-2 border-t border-[#e2e8f0] dark:border-[#1e335a] flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1">
                     {REACTION_ITEMS.map(({ type, label, icon: RIcon }) => {
                       const active = post.viewerReaction === type;
                       const count = post.reactionCounts[type] || 0;
@@ -949,13 +949,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                           key={type}
                           type="button"
                           onClick={() => handleReaction(post.id, type)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold border transition-colors cursor-pointer ${
                             active
                               ? 'bg-[#E45424] text-white border-[#E45424]'
                               : 'bg-[#f8fafc] dark:bg-[#0f1c38] text-[#475569] dark:text-slate-300 border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#E45424]/50'
                           }`}
                         >
-                          <RIcon className="w-3.5 h-3.5" />
+                          <RIcon className="w-3 h-3" />
                           <span>{label}</span>
                           {count > 0 && <span className="tabular-nums font-bold">({count})</span>}
                         </button>
@@ -963,13 +963,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                     })}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => toggleComments(post.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-xs font-semibold text-[#475569] dark:text-slate-300 hover:border-[#162956] cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[10.5px] font-semibold text-[#475569] dark:text-slate-300 hover:border-[#162956] cursor-pointer"
                     >
-                      <MessageCircle className="w-3.5 h-3.5" />
+                      <MessageCircle className="w-3 h-3" />
                       <span className="tabular-nums">Yorumlar ({post.commentsCount})</span>
                     </button>
 
@@ -988,9 +988,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                         });
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-xs font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[10.5px] font-semibold text-[#475569] dark:text-slate-300 hover:border-[#E45424] cursor-pointer"
                     >
-                      <Repeat2 className="w-3.5 h-3.5" />
+                      <Repeat2 className="w-3 h-3" />
                       <span className="hidden sm:inline">Yeniden Paylaş</span>
                     </button>
                   </div>
@@ -998,13 +998,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
 
                 {/* Expandable Comments Section */}
                 {isCommentsOpen && (
-                  <div className="pt-3 border-t border-[#e2e8f0] dark:border-[#1e335a] space-y-3">
+                  <div className="pt-2.5 border-t border-[#e2e8f0] dark:border-[#1e335a] space-y-2">
                     {displayedComments.length === 0 ? (
-                      <div className="text-xs text-[#64748b] dark:text-slate-400">
+                      <div className="text-[11px] text-[#64748b] dark:text-slate-400">
                         Henüz yorum yapılmamış. İlk yorumu siz yazın.
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {displayedComments.map((c) => {
                           const canDeleteComment =
                             isAuthenticated &&
@@ -1014,16 +1014,16 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                           return (
                             <div
                               key={c.id}
-                              className="p-3 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] flex items-start justify-between gap-2 text-xs"
+                              className="p-2.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] flex items-start justify-between gap-2 text-[11.5px]"
                             >
-                              <div className="flex items-start gap-2.5 min-w-0">
+                              <div className="flex items-start gap-2 min-w-0">
                                 <img
                                   src={c.authorAvatar || '/src/assets/images/artist_jazz_pianist_1794440057025.jpg'}
                                   alt={c.authorName}
-                                  className="w-7 h-7 rounded-lg object-cover shrink-0 mt-0.5"
+                                  className="w-6 h-6 rounded-lg object-cover shrink-0 mt-0.5"
                                 />
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -1039,7 +1039,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                                       {formatRelativeDate(c.createdAt)}
                                     </span>
                                   </div>
-                                  <p className="text-[#334155] dark:text-slate-300 mt-0.5 leading-relaxed">{c.body}</p>
+                                  <p className="text-[#334155] dark:text-slate-300 mt-0.5 leading-snug break-words [overflow-wrap:anywhere]">{c.body}</p>
                                 </div>
                               </div>
 
@@ -1059,19 +1059,19 @@ export const FeedView: React.FC<FeedViewProps> = ({ highlightedPostId }) => {
                       </div>
                     )}
 
-                    <form onSubmit={(e) => handleAddComment(post.id, e)} className="flex gap-2">
+                    <form onSubmit={(e) => handleAddComment(post.id, e)} className="flex gap-1.5">
                       <input
                         type="text"
                         aria-label="Yorumunuz"
                         value={commentDrafts[post.id] || ''}
                         onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))}
                         placeholder="Yorumunuzu yazın..."
-                        className="flex-1 px-3 py-2 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs text-[#0f172a] dark:text-white"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[11.5px] text-[#0f172a] dark:text-white"
                       />
                       <button
                         type="submit"
                         disabled={commentBusyId === post.id}
-                        className="px-4 py-2 rounded-xl bg-[#162956] dark:bg-[#E45424] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                        className="px-3.5 py-1.5 rounded-xl bg-[#162956] dark:bg-[#E45424] text-white text-[11.5px] font-bold cursor-pointer disabled:opacity-50 shrink-0"
                       >
                         Gönder
                       </button>

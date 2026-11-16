@@ -121,6 +121,34 @@ class RealtimeClient {
     }
   }
 
+  subscribeCommunity(communityId: string) {
+    if (!communityId || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: 'community:subscribe',
+          payload: { communityId },
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  unsubscribeCommunity(communityId: string) {
+    if (!communityId || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: 'community:unsubscribe',
+          payload: { communityId },
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }
+
   private startPing() {
     this.stopPing();
     if (typeof window === 'undefined') return;

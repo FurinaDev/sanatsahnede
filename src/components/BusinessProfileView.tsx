@@ -75,7 +75,7 @@ export const BusinessProfileView: React.FC<Props> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/85 via-[#0f172a]/25 to-transparent" />
         </div>
 
-        <div className="px-5 sm:px-8 pb-8 pt-4 relative bg-white dark:bg-[#13213e]">
+        <div className="px-6 sm:px-8 pb-8 pt-4 relative bg-white dark:bg-[#13213e]">
           <div className="flex flex-wrap items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
             <div className="relative shrink-0">
               <img
@@ -84,19 +84,10 @@ export const BusinessProfileView: React.FC<Props> = ({
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-white dark:border-[#13213e] shadow-xl bg-[#f8fafc] dark:bg-[#0f1c38]"
               />
             </div>
-
-            <div className="pt-2">
-              <SocialActionBar
-                targetUserId={business.userId}
-                targetName={business.businessName}
-                followersCount={business.followersCount}
-                onBlocked={onBack}
-              />
-            </div>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-1">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#0f172a] dark:text-white tracking-[-0.02em]">
                   {business.businessName}
@@ -104,29 +95,79 @@ export const BusinessProfileView: React.FC<Props> = ({
                 {business.isVerified && (
                   <VerifiedBadge label="Doğrulanmış İşletme" size="lg" />
                 )}
+                {business.isRecommended && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-[#f25922] px-2.5 py-0.5 rounded-md">
+                    Tavsiye Edilen
+                  </span>
+                )}
               </div>
-              <div className="text-sm font-semibold text-[#f25922]">{business.businessType}</div>
+              <div className="text-sm font-semibold text-[#ad3300] dark:text-[#ffb59e]">{business.businessType}</div>
               <div className="flex items-center gap-2 text-xs text-[#475569] dark:text-slate-300">
                 <MapPin className="w-3.5 h-3.5 text-[#64748b] dark:text-slate-400 shrink-0" />
                 <span>{business.address || `${business.city}, ${business.district}`}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-center sm:text-right bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] self-stretch sm:self-start lg:self-auto tabular-nums">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">Puan</div>
-                <div className="flex items-center justify-center sm:justify-end gap-1 font-display font-extrabold text-[#0f172a] dark:text-white text-lg">
-                  <Star className="w-4 h-4 text-[#f25922] fill-[#f25922]" />
-                  <span>{business.ratingAvg.toFixed(2)}</span>
-                </div>
-                <div className="text-[11px] text-[#64748b] dark:text-slate-400">{business.ratingCount} Değerlendirme</div>
+            <div className="bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] self-stretch sm:self-start lg:self-auto space-y-3">
+              <div className="flex items-center justify-end pb-2.5 border-b border-[#e2e8f0] dark:border-[#1e335a]">
+                <SocialActionBar
+                  statsOnly
+                  targetUserId={business.userId}
+                  targetName={business.businessName}
+                  followersCount={business.followersCount}
+                  followingCount={business.followingCount ?? 0}
+                />
               </div>
 
-              <div className="border-l border-[#e2e8f0] dark:border-[#1e335a] pl-4">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">Etkinlikler</div>
-                <div className="font-display font-extrabold text-[#0f172a] dark:text-white text-lg">{business.completedBookingsCount}</div>
-                <div className="text-[11px] text-[#64748b] dark:text-slate-400">Tamamlanan</div>
+              <div className="grid grid-cols-2 gap-4 text-center sm:text-right tabular-nums">
+                <div className="space-y-0.5">
+                  <div className="label-caps text-[#64748b] dark:text-slate-400">Değerlendirme</div>
+                  <div className="flex items-center justify-center sm:justify-end gap-1 font-display font-extrabold text-[#0f172a] dark:text-white text-lg">
+                    <Star className="w-4 h-4 text-[#f25922] fill-[#f25922]" />
+                    <span>{business.ratingAvg.toFixed(2)}</span>
+                  </div>
+                  <div className="text-[10px] text-[#64748b] dark:text-slate-400">{business.ratingCount} Yorum</div>
+                </div>
+
+                <div className="space-y-0.5 border-l border-[#e2e8f0] dark:border-[#1e335a] pl-4">
+                  <div className="label-caps text-[#64748b] dark:text-slate-400">Etkinlikler</div>
+                  <div className="font-display font-extrabold text-[#0f172a] dark:text-white text-lg">{business.completedBookingsCount}</div>
+                  <div className="text-[10px] text-[#64748b] dark:text-slate-400">Tamamlanan</div>
+                </div>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-[#e2e8f0] dark:border-[#1e335a] flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="font-bold text-[#0f172a] dark:text-white">Etkinlik Alanları:</span>
+              {(business.disciplines && business.disciplines.length > 0 ? business.disciplines : ['Müzik']).map((d) => (
+                <span key={d} className="font-semibold text-[#16274e] dark:text-slate-200 bg-[#f1f3ff] dark:bg-[#0f1c38] px-2.5 py-1 rounded-md border border-[#e2e8f0] dark:border-[#1e335a]">
+                  {d}
+                </span>
+              ))}
+              {business.facilities && business.facilities.length > 0 && (
+                <>
+                  <span aria-hidden="true" className="text-[#cbd5e1] dark:text-slate-600">·</span>
+                  <span className="font-bold text-[#0f172a] dark:text-white">Olanaklar:</span>
+                  {business.facilities.slice(0, 3).map((f) => (
+                    <span key={f} className="font-semibold text-[#ad3300] dark:text-[#ffb59e] bg-orange-50 dark:bg-[#f25922]/15 px-2.5 py-1 rounded-md">
+                      {f}
+                    </span>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className="ml-auto">
+              <SocialActionBar
+                hideStats
+                targetUserId={business.userId}
+                targetName={business.businessName}
+                followersCount={business.followersCount}
+                followingCount={business.followingCount ?? 0}
+                onBlocked={onBack}
+              />
             </div>
           </div>
         </div>

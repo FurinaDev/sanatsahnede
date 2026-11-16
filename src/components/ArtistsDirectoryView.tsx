@@ -15,6 +15,7 @@ import { ArchitecturalPageHeader } from './ui/ArchitecturalPageHeader';
 import { CustomSelect } from './ui/CustomSelect';
 import { PaginationBar } from './ui/PaginationBar';
 import { InteractiveMap } from './ui/InteractiveMap';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import { CITY_COORDINATES } from '../services/mapProvider';
 import {
   Filter,
@@ -841,7 +842,7 @@ export const ArtistsDirectoryView: React.FC = () => {
                                     {artist.fullName}
                                   </h3>
                                   {artist.isVerified && (
-                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <VerifiedBadge size="sm" label="Doğrulanmış Sanatçı" />
                                   )}
                                 </div>
                                 <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-[#0f172a] dark:text-white tabular-nums shrink-0">
@@ -911,7 +912,7 @@ export const ArtistsDirectoryView: React.FC = () => {
                                   {artist.fullName}
                                 </span>
                                 {artist.isVerified && (
-                                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <VerifiedBadge size="sm" label="Doğrulanmış Sanatçı" />
                                 )}
                                 <span className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-[#f25922]/15 text-[#f25922] text-[10px] font-bold">
                                   {disc}

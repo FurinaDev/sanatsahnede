@@ -380,6 +380,157 @@ export function createAdminRouter(db: DbInstance): Router {
     }
   );
 
+  // Direct Verified Badge Governance (Artist, Ensemble, Business, Community, Venue, Technical Provider)
+  router.post(
+    '/entities/:entityType/:id/verify',
+    requireAuth,
+    requireRole('admin', 'verification_officer'),
+    (req: AuthedRequest, res) => {
+      const { entityType, id } = req.params;
+      const verified = req.body?.isVerified !== false ? 1 : 0;
+      const label = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+
+      if (entityType === 'artist') {
+        const row = db.prepare('SELECT * FROM individual_profiles WHERE id = ?').get(id) as any;
+        if (!row) return res.status(404).json({ error: 'Sanatçı profili bulunamadı.' });
+        db.prepare(
+          `UPDATE individual_profiles SET is_verified = ?, verification_status = ?, verified_label = ? WHERE id = ?`
+        ).run(verified, verified ? 'approved' : 'pending', verified ? label || 'Doğrulanmış Sanatçı' : '', row.id);
+        db.prepare(`UPDATE users SET is_verified = ?, kyc_status = ? WHERE id = ?`).run(
+          verified,
+          verified ? 'approved' : 'unsubmitted',
+          row.user_id
+        );
+        notifyUser(db, {
+          userId: row.user_id,
+          type: 'verification_badge',
+          title: verified ? 'Doğrulama Rozetiniz Aktif Edildi' : 'Doğrulama Rozeti Güncellemesi',
+          body: verified
+            ? `${row.full_name} profiliniz için doğrulama rozeti onaylandı.`
+            : `${row.full_name} profilinizin doğrulama rozeti kaldırıldı.`,
+          linkView: 'artist_profile',
+          linkEntityId: row.id,
+        });
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_ARTIST_BADGE' : 'REVOKE_ARTIST_BADGE',
+          resourceType: 'individual_profile',
+          resourceId: row.id,
+          details: { label },
+        });
+        return res.json({ entityType, id: row.id, isVerified: Boolean(verified), verifiedLabel: label });
+      }
+
+      if (entityType === 'ensemble') {
+        const row = db.prepare('SELECT * FROM ensembles WHERE id = ?').get(id) as any;
+        if (!row) return res.status(404).json({ error: 'Topluluk bulunamadı.' });
+        db.prepare(
+          `UPDATE ensembles SET is_verified = ?, verification_status = ?, verified_label = ? WHERE id = ?`
+        ).run(verified, verified ? 'approved' : 'pending', verified ? label || 'Doğrulanmış Topluluk' : '', row.id);
+        notifyUser(db, {
+          userId: row.leader_user_id,
+          type: 'verification_badge',
+          title: verified ? 'Topluluk Doğrulama Rozetiniz Aktif' : 'Topluluk Rozeti Güncellemesi',
+          body: verified
+            ? `"${row.name}" topluluğu için doğrulama rozeti aktif edildi.`
+            : `"${row.name}" topluluğunun doğrulama rozeti kaldırıldı.`,
+          linkView: 'ensemble_profile',
+          linkEntityId: row.id,
+        });
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_ENSEMBLE_BADGE' : 'REVOKE_ENSEMBLE_BADGE',
+          resourceType: 'ensemble',
+          resourceId: row.id,
+          details: { label },
+        });
+        return res.json({ entityType, id: row.id, isVerified: Boolean(verified), verifiedLabel: label });
+      }
+
+      if (entityType === 'business') {
+        const row = db.prepare('SELECT * FROM business_profiles WHERE id = ?').get(id) as any;
+        if (!row) return res.status(404).json({ error: 'İşletme / kurum bulunamadı.' });
+        db.prepare(
+          `UPDATE business_profiles SET is_verified = ?, verification_status = ?, verified_label = ? WHERE id = ?`
+        ).run(verified, verified ? 'approved' : 'pending', verified ? label || 'Doğrulanmış Kurum' : '', row.id);
+        notifyUser(db, {
+          userId: row.user_id,
+          type: 'verification_badge',
+          title: verified ? 'Kurum Doğrulama Rozetiniz Aktif' : 'Kurum Rozeti Güncellemesi',
+          body: verified
+            ? `"${row.business_name}" kurumu için doğrulama rozeti aktif edildi.`
+            : `"${row.business_name}" kurumunun doğrulama rozeti kaldırıldı.`,
+          linkView: 'business_profile',
+          linkEntityId: row.id,
+        });
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_BUSINESS_BADGE' : 'REVOKE_BUSINESS_BADGE',
+          resourceType: 'business_profile',
+          resourceId: row.id,
+          details: { label },
+        });
+        return res.json({ entityType, id: row.id, isVerified: Boolean(verified), verifiedLabel: label });
+      }
+
+      if (entityType === 'community') {
+        const row = db.prepare('SELECT * FROM communities WHERE id = ?').get(id) as any;
+        if (!row) return res.status(404).json({ error: 'Topluluk kanalı bulunamadı.' });
+        db.prepare(`UPDATE communities SET is_verified = ?, verified_label = ? WHERE id = ?`).run(
+          verified,
+          verified ? label || 'Doğrulanmış Topluluk' : '',
+          row.id
+        );
+        notifyUser(db, {
+          userId: row.owner_user_id,
+          type: 'verification_badge',
+          title: verified ? 'Topluluk Kanalınız Doğrulandı' : 'Topluluk Kanalı Rozeti Kaldırıldı',
+          body: verified
+            ? `"${row.name}" topluluğu doğrulanmış topluluk statüsü kazandı.`
+            : `"${row.name}" topluluğunun doğrulama rozeti kaldırıldı.`,
+          linkView: 'communities',
+          linkEntityId: row.id,
+        });
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_COMMUNITY_BADGE' : 'REVOKE_COMMUNITY_BADGE',
+          resourceType: 'community',
+          resourceId: row.id,
+          details: { label },
+        });
+        return res.json({ entityType, id: row.id, isVerified: Boolean(verified), verifiedLabel: label });
+      }
+
+      if (entityType === 'venue') {
+        const venue = db.prepare('SELECT * FROM venues WHERE id = ?').get(id) as any;
+        if (!venue) return res.status(404).json({ error: 'Mekân bulunamadı.' });
+        db.prepare('UPDATE venues SET is_verified = ? WHERE id = ?').run(verified, venue.id);
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_VENUE' : 'UNVERIFY_VENUE',
+          resourceType: 'venue',
+          resourceId: venue.id,
+        });
+        return res.json({ entityType, id: venue.id, isVerified: Boolean(verified) });
+      }
+
+      if (entityType === 'technical_provider') {
+        const tp = db.prepare('SELECT * FROM technical_providers WHERE id = ?').get(id) as any;
+        if (!tp) return res.status(404).json({ error: 'Teknik sağlayıcı bulunamadı.' });
+        db.prepare('UPDATE technical_providers SET is_verified = ? WHERE id = ?').run(verified, tp.id);
+        logAudit(db, {
+          userId: req.user!.id,
+          action: verified ? 'VERIFY_TECHNICAL_PROVIDER' : 'UNVERIFY_TECHNICAL_PROVIDER',
+          resourceType: 'technical_provider',
+          resourceId: tp.id,
+        });
+        return res.json({ entityType, id: tp.id, isVerified: Boolean(verified) });
+      }
+
+      return res.status(400).json({ error: 'Desteklenmeyen profil/varlık türü.' });
+    }
+  );
+
   // Sandbox Demo Reset
   router.post('/reset-demo', requireAuth, requireRole('admin'), (req: AuthedRequest, res) => {
     seedDatabase(db, true);

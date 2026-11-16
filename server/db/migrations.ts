@@ -253,6 +253,83 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    name: '007_communities_channels_and_badge_governance',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS communities (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          discipline TEXT NOT NULL DEFAULT 'Müzik',
+          city TEXT NOT NULL DEFAULT 'İstanbul',
+          avatar_url TEXT NOT NULL DEFAULT '',
+          cover_url TEXT NOT NULL DEFAULT '',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          owner_user_id TEXT NOT NULL,
+          is_verified INTEGER NOT NULL DEFAULT 0,
+          verified_label TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_communities_disc_city ON communities(discipline, city);
+
+        CREATE TABLE IF NOT EXISTS community_members (
+          community_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'member',
+          is_muted INTEGER NOT NULL DEFAULT 0,
+          joined_at TEXT NOT NULL,
+          PRIMARY KEY (community_id, user_id),
+          FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
+
+        CREATE TABLE IF NOT EXISTS community_channels (
+          id TEXT PRIMARY KEY,
+          community_id TEXT NOT NULL,
+          slug TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          channel_type TEXT NOT NULL DEFAULT 'discussion',
+          is_readonly INTEGER NOT NULL DEFAULT 0,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_channels_comm ON community_channels(community_id, sort_order);
+
+        CREATE TABLE IF NOT EXISTS community_messages (
+          id TEXT PRIMARY KEY,
+          channel_id TEXT NOT NULL,
+          community_id TEXT NOT NULL,
+          sender_user_id TEXT NOT NULL,
+          sender_name TEXT NOT NULL,
+          sender_avatar TEXT NOT NULL DEFAULT '',
+          body TEXT NOT NULL DEFAULT '',
+          attachment_url TEXT,
+          attachment_name TEXT,
+          attachment_type TEXT,
+          reply_to_message_id TEXT,
+          reactions_json TEXT NOT NULL DEFAULT '{}',
+          is_pinned INTEGER NOT NULL DEFAULT 0,
+          deleted_at TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (channel_id) REFERENCES community_channels(id) ON DELETE CASCADE,
+          FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
+          FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_messages_chan ON community_messages(channel_id, created_at);
+      `);
+
+      ensureColumn(db, 'individual_profiles', 'verified_label', "TEXT NOT NULL DEFAULT ''");
+      ensureColumn(db, 'ensembles', 'verified_label', "TEXT NOT NULL DEFAULT ''");
+      ensureColumn(db, 'business_profiles', 'verified_label', "TEXT NOT NULL DEFAULT ''");
+    },
+  },
 ];
 
 export function runMigrations(db: DbInstance): { appliedVersions: number[]; currentVersion: number } {

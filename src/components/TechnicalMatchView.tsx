@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
 import { formatCurrencyTRY } from '../utils/businessLogic';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import { Wrench, ShieldCheck, MapPin, CheckCircle2, AlertCircle, Send, Sparkles, Lock } from 'lucide-react';
 
 interface MatchResult {
@@ -389,7 +390,7 @@ export const TechnicalMatchView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-base text-slate-900 dark:text-white">{tp.name}</h3>
-                    {tp.isVerified && <ShieldCheck className="w-4 h-4 text-emerald-500" />}
+                    {tp.isVerified && <VerifiedBadge size="sm" label="Doğrulanmış Teknik Sağlayıcı" />}
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                     <MapPin className="w-3.5 h-3.5 text-[#E45424]" />

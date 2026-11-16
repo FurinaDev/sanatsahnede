@@ -23,6 +23,7 @@ import { createGeoRouter } from './server/modules/geo';
 import { createDirectoryRouter } from './server/modules/directory';
 import { createSocialRouter } from './server/modules/social';
 import { createFeedRouter } from './server/modules/feed';
+import { createCommunitiesRouter } from './server/modules/communities';
 import type http from 'http';
 import { createStorageAdapter, getUploadRoot } from './server/services/storageAdapter';
 import {
@@ -78,6 +79,7 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   app.use('/api/geo', createGeoRouter(db));
   app.use('/api/social', createSocialRouter(db));
   app.use('/api/feed', createFeedRouter(db));
+  app.use('/api/communities', createCommunitiesRouter(db, realtimeHub));
   app.use('/api', createDirectoryRouter(db));
   app.use('/api', createBootstrapRouter(db));
   app.use('/api', createProfilesRouter(db));

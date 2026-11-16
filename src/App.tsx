@@ -40,6 +40,7 @@ import { OrganizerDashboard } from './components/OrganizerDashboard';
 import { OriginalsView } from './components/OriginalsView';
 import { AudienceDashboard } from './components/AudienceDashboard';
 import { MessagingCenter } from './components/MessagingCenter';
+import { CommunitiesView } from './components/CommunitiesView';
 import { FeedView } from './components/FeedView';
 import {
   ArrowRight,
@@ -248,6 +249,9 @@ const AppContent: React.FC = () => {
 
       case 'messages':
         return <MessagingCenter />;
+
+      case 'communities':
+        return <CommunitiesView initialCommunityId={selectedEntityId || undefined} />;
 
       case 'feed':
         return <FeedView highlightedPostId={selectedEntityId || undefined} />;

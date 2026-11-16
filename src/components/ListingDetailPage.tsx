@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { calculateCommission, formatCurrencyTRY, SmartMatchExplanation } from '../utils/businessLogic';
 import { apiRequest } from '../services/api';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   ChevronLeft,
   Calendar,
@@ -264,7 +265,7 @@ export const ListingDetailPage: React.FC<Props> = ({ listingId, onBack }) => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569] dark:text-slate-300">
                 <span className="font-bold text-[#16274e] dark:text-white">{listing.businessName}</span>
-                {listing.businessVerified && <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />}
+                {listing.businessVerified && <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />}
                 <span aria-hidden="true">·</span>
                 <span>{listing.businessType}</span>
                 <span aria-hidden="true">·</span>
@@ -673,7 +674,7 @@ export const ListingDetailPage: React.FC<Props> = ({ listingId, onBack }) => {
               <div>
                 <div className="text-sm font-display font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
                   <span>{listing.businessName}</span>
-                  {listing.businessVerified && <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                  {listing.businessVerified && <VerifiedBadge size="sm" label="Doğrulanmış İşletme" />}
                 </div>
                 <div className="text-xs text-[#ad3300] dark:text-[#ffb59e] font-semibold">{listing.businessType}</div>
               </div>

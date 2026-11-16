@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { AuditLogEntry, RoleType, User } from '../types';
+import { AuditLogEntry, Community, RoleType, User } from '../types';
 import { formatCurrencyTRY } from '../utils/businessLogic';
 import { apiRequest } from '../services/api';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
+  BadgeCheck,
   CheckCircle2,
   FileText,
   RotateCcw,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Users as UsersIcon,
@@ -51,12 +54,16 @@ export const AdminPanel: React.FC = () => {
     adminUpdateUserStatus,
     adminVerifyVenue,
     adminVerifyTechnicalProvider,
+    adminVerifyEntity,
     verifications,
     adminApproveVerification,
     adminRejectVerification,
     moderateEntity,
     resolveDispute,
     toggleFeatureFlag,
+    artists,
+    ensembles,
+    businesses,
     listings,
     events,
     opportunities,
@@ -86,21 +93,29 @@ export const AdminPanel: React.FC = () => {
   const [userRoleDrafts, setUserRoleDrafts] = useState<Record<string, RoleType[]>>({});
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [badgeFilterType, setBadgeFilterType] = useState<'artist' | 'ensemble' | 'business' | 'community'>('artist');
+  const [badgeQuery, setBadgeQuery] = useState('');
+  const [badgeNote, setBadgeNote] = useState('');
 
   const isStaff = isAuthenticated && STAFF_ROLES.includes(activeRole);
 
   const refreshOverview = useCallback(async () => {
     if (!isStaff) return;
     try {
-      const res = await apiRequest<{
-        auditLogs?: AuditLogEntry[];
-        users?: User[];
-        contactMessages?: ContactMessageRow[];
-      }>('/api/admin/overview');
+      const [res, commRes] = await Promise.all([
+        apiRequest<{
+          auditLogs?: AuditLogEntry[];
+          users?: User[];
+          contactMessages?: ContactMessageRow[];
+        }>('/api/admin/overview'),
+        apiRequest<{ communities?: Community[] }>('/api/communities').catch(() => ({ communities: [] })),
+      ]);
       setAuditLogs(res.auditLogs || []);
       const loadedUsers = res.users || [];
       setUsers(loadedUsers);
       setContactMessages(res.contactMessages || []);
+      setCommunities(commRes.communities || []);
       setUserRoleDrafts((prev) => {
         const next: Record<string, RoleType[]> = { ...prev };
         for (const u of loadedUsers) {
@@ -257,6 +272,28 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleToggleEntityBadge = async (
+    entityType: 'artist' | 'ensemble' | 'business' | 'community',
+    id: string,
+    nextVerified: boolean
+  ) => {
+    const res = await adminVerifyEntity(
+      entityType,
+      id,
+      nextVerified,
+      nextVerified ? badgeNote.trim() || undefined : ''
+    );
+    if (res.success) {
+      setFeedback({
+        type: 'success',
+        text: nextVerified ? 'Doğrulama rozeti aktif edildi.' : 'Doğrulama rozeti kaldırıldı.',
+      });
+      await refreshOverview();
+    } else {
+      setFeedback({ type: 'error', text: res.error || 'Rozet durumu güncellenemedi.' });
+    }
+  };
+
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8 text-left space-y-8">
       <div className="bg-gradient-to-br from-[#16274e] via-[#12161b] to-[#0c0e12] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-white/10">
@@ -404,6 +441,140 @@ export const AdminPanel: React.FC = () => {
             )}
           </div>
 
+          {/* Verified Badge Governance across Artists, Ensembles, Businesses & Communities */}
+          <div className="bg-white dark:bg-[#13213e] p-6 sm:p-8 rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <BadgeCheck className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-display text-lg font-bold text-[#0f172a] dark:text-white">
+                    Doğrulanmış Rozet Yönetimi (Badge Governance)
+                  </h3>
+                </div>
+                <p className="text-xs text-[#64748b] dark:text-slate-400 mt-0.5">
+                  Sanatçılar, topluluklar, işletmeler ve topluluk kanalları için doğrulama rozetini doğrudan verin veya kaldırın.
+                </p>
+              </div>
+
+              <div className="inline-flex p-1 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-xs">
+                {[
+                  { key: 'artist', label: `Sanatçılar (${artists.length})` },
+                  { key: 'ensemble', label: `Topluluklar (${ensembles.length})` },
+                  { key: 'business', label: `İşletmeler (${businesses.length})` },
+                  { key: 'community', label: `Kanallar (${communities.length})` },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setBadgeFilterType(item.key as any)}
+                    className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                      badgeFilterType === item.key
+                        ? 'bg-[#f25922] text-white shadow-xs'
+                        : 'text-[#475569] dark:text-slate-300 hover:text-[#0f172a] dark:hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={badgeQuery}
+                  onChange={(e) => setBadgeQuery(e.target.value)}
+                  placeholder="İsim veya şehir ara..."
+                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs"
+                />
+              </div>
+              <input
+                value={badgeNote}
+                onChange={(e) => setBadgeNote(e.target.value)}
+                placeholder="Opsiyonel rozet etiketi (örn: Kurumsal Onaylı Profil)"
+                className="w-full px-3 py-2 rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+              {(() => {
+                const q = badgeQuery.trim().toLowerCase();
+                const items =
+                  badgeFilterType === 'artist'
+                    ? artists.map((a) => ({
+                        id: a.id,
+                        name: a.fullName,
+                        subtitle: `${a.title || a.discipline} · ${a.city}`,
+                        isVerified: a.isVerified,
+                        label: a.verifiedLabel || 'Doğrulanmış Sanatçı',
+                      }))
+                    : badgeFilterType === 'ensemble'
+                    ? ensembles.map((e) => ({
+                        id: e.id,
+                        name: e.name,
+                        subtitle: `${e.ensembleType} · ${e.city}`,
+                        isVerified: e.isVerified,
+                        label: e.verifiedLabel || 'Doğrulanmış Topluluk',
+                      }))
+                    : badgeFilterType === 'business'
+                    ? businesses.map((b) => ({
+                        id: b.id,
+                        name: b.businessName,
+                        subtitle: `${b.businessType} · ${b.city}`,
+                        isVerified: b.isVerified,
+                        label: b.verifiedLabel || 'Doğrulanmış Kurum',
+                      }))
+                    : communities.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        subtitle: `${c.discipline} · ${c.city} · ${c.memberCount} üye`,
+                        isVerified: c.isVerified,
+                        label: c.verifiedLabel || 'Doğrulanmış Topluluk Kanalı',
+                      }));
+
+                const filtered = q
+                  ? items.filter(
+                      (i) =>
+                        i.name.toLowerCase().includes(q) ||
+                        i.subtitle.toLowerCase().includes(q)
+                    )
+                  : items;
+
+                if (filtered.length === 0) {
+                  return <p className="text-xs text-[#64748b] col-span-2">Eşleşen kayıt bulunamadı.</p>;
+                }
+
+                return filtered.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
+                        <span className="truncate">{item.name}</span>
+                        {item.isVerified && <VerifiedBadge size="sm" label={item.label} />}
+                      </div>
+                      <div className="text-[11px] text-[#64748b] truncate mt-0.5">{item.subtitle}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleEntityBadge(badgeFilterType, item.id, !item.isVerified)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 cursor-pointer transition-colors ${
+                        item.isVerified
+                          ? 'bg-slate-200 dark:bg-slate-800 text-[#0f172a] dark:text-white hover:bg-rose-100 hover:text-rose-800'
+                          : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                      }`}
+                    >
+                      {item.isVerified ? 'Rozeti Kaldır' : 'Rozet Ver'}
+                    </button>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-[#13213e] p-6 rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] space-y-4">
               <h3 className="font-display text-base font-bold text-[#0f172a] dark:text-white">Mekân Doğrulama</h3>
@@ -416,7 +587,7 @@ export const AdminPanel: React.FC = () => {
                       <div>
                         <div className="text-sm font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
                           <span>{v.name}</span>
-                          {v.isVerified && <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+                          {v.isVerified && <VerifiedBadge size="sm" label="Doğrulanmış Mekân" />}
                         </div>
                         <div className="text-xs text-[#64748b]">
                           {v.city}
@@ -449,7 +620,7 @@ export const AdminPanel: React.FC = () => {
                       <div>
                         <div className="text-sm font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
                           <span>{tp.name}</span>
-                          {tp.isVerified && <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+                          {tp.isVerified && <VerifiedBadge size="sm" label="Doğrulanmış Teknik Sağlayıcı" />}
                         </div>
                         <div className="text-xs text-[#64748b]">{tp.city} · {(tp.categories || []).join(', ')}</div>
                       </div>

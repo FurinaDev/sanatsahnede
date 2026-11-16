@@ -19,11 +19,13 @@ export function seedDatabase(db: DbInstance, force = false): void {
   const existingCount = (db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }).cnt;
   if (existingCount > 0 && !force) {
     seedInitialFeedPosts(db);
+    seedInitialCommunities(db);
     return;
   }
 
   if (force) {
     const tables = [
+      'community_messages', 'community_channels', 'community_members', 'communities',
       'post_reactions', 'post_comments', 'post_media', 'posts',
       'sessions', 'audit_logs', 'notifications', 'messages', 'conversations',
       'user_mutes', 'user_blocks', 'follows',
@@ -1073,6 +1075,7 @@ export function seedDatabase(db: DbInstance, force = false): void {
 
   tx();
   seedInitialFeedPosts(db);
+  seedInitialCommunities(db);
 }
 
 function seedInitialFeedPosts(db: DbInstance): void {
@@ -1211,6 +1214,155 @@ function seedInitialFeedPosts(db: DbInstance): void {
       hasSelin.avatar_url || '',
       'Harika bir program olmuş, gala gecesi provasında görüşmek üzere!',
       '2026-11-15T10:45:00Z'
+    );
+  });
+
+  tx();
+}
+
+function seedInitialCommunities(db: DbInstance): void {
+  const count = (db.prepare('SELECT COUNT(*) as cnt FROM communities').get() as { cnt: number }).cnt;
+  if (count > 0) return;
+
+  const hasEfe = db.prepare('SELECT id, avatar_url FROM users WHERE id = ?').get('user_artist_efe') as any;
+  const hasSelin = db.prepare('SELECT id, avatar_url FROM users WHERE id = ?').get('user_trio_selin') as any;
+  const hasHotel = db.prepare('SELECT id, avatar_url FROM users WHERE id = ?').get('user_hotel_mgr') as any;
+  const hasEce = db.prepare('SELECT id, avatar_url FROM users WHERE id = ?').get('user_audience_ece') as any;
+  const hasTech = db.prepare('SELECT id, avatar_url FROM users WHERE id = ?').get('user_tech_pro') as any;
+  if (!hasEfe || !hasSelin || !hasHotel) return;
+
+  const insertComm = db.prepare(`
+    INSERT OR IGNORE INTO communities (
+      id, slug, name, description, discipline, city, avatar_url, cover_url, visibility, owner_user_id, is_verified, verified_label, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertMember = db.prepare(`
+    INSERT OR IGNORE INTO community_members (community_id, user_id, role, is_muted, joined_at)
+    VALUES (?, ?, ?, 0, ?)
+  `);
+  const insertChannel = db.prepare(`
+    INSERT OR IGNORE INTO community_channels (
+      id, community_id, slug, name, description, channel_type, is_readonly, sort_order, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertMsg = db.prepare(`
+    INSERT OR IGNORE INTO community_messages (
+      id, channel_id, community_id, sender_user_id, sender_name, sender_avatar, body, reactions_json, is_pinned, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const now = '2026-11-16T08:00:00Z';
+
+  const tx = db.transaction(() => {
+    // 1. İstanbul Caz & Oda Müziği Ağı
+    insertComm.run(
+      'comm_istanbul_caz',
+      'istanbul-caz-oda-muzigi',
+      'İstanbul Caz & Oda Müziği Ağı',
+      'İstanbul’daki akustik caz müzisyenleri, yaylı topluluklar ve oda müziği sahnelerinin resmi duyuru ve koordinasyon kanalları.',
+      'Müzik',
+      'İstanbul',
+      '/src/assets/images/hero_culture_music_1794440056664.jpg',
+      '',
+      'public',
+      'user_artist_efe',
+      1,
+      'Doğrulanmış Sanat Topluluğu',
+      now
+    );
+    insertMember.run('comm_istanbul_caz', 'user_artist_efe', 'owner', now);
+    insertMember.run('comm_istanbul_caz', 'user_trio_selin', 'moderator', now);
+    insertMember.run('comm_istanbul_caz', 'user_hotel_mgr', 'member', now);
+    if (hasEce) insertMember.run('comm_istanbul_caz', 'user_audience_ece', 'member', now);
+
+    insertChannel.run('ch_caz_duyuru', 'comm_istanbul_caz', 'duyurular', 'Duyurular', 'Yalnızca kurucu ve moderatörlerin açık çağrı ve takvim duyuruları.', 'announcement', 1, 0, now);
+    insertChannel.run('ch_caz_genel', 'comm_istanbul_caz', 'genel', '#genel', 'Tanışma, repertuvar fikirleri ve günlük sahne sohbetleri.', 'discussion', 0, 1, now);
+    insertChannel.run('ch_caz_sahne', 'comm_istanbul_caz', 'sahne-ve-prova', '#sahne-ve-prova', 'Acil enstrüman ikamesi, prova odası paylaşımı ve akustik notlar.', 'discussion', 0, 2, now);
+
+    insertMsg.run(
+      'cmsg_caz_1', 'ch_caz_duyuru', 'comm_istanbul_caz', 'user_artist_efe', 'Efe Özkan',
+      hasEfe.avatar_url || '', 'Kasım–Aralık Boğaziçi Oda Müziği serisi için açık sahne ve konuk solist başvuruları haftalık olarak bu kanalda paylaşılacaktır.',
+      JSON.stringify({ '👏': ['user_trio_selin', 'user_hotel_mgr'], '🎶': ['user_trio_selin'] }),
+      1, '2026-11-16T08:10:00Z'
+    );
+    insertMsg.run(
+      'cmsg_caz_2', 'ch_caz_genel', 'comm_istanbul_caz', 'user_trio_selin', 'Selin Arslan',
+      hasSelin.avatar_url || '', 'Herkese merhaba! Bu hafta Kadıköy ve Beşiktaş akşam setleri için viyola ikamesi arayan dostlarımız #sahne-ve-prova kanalına yazabilir.',
+      JSON.stringify({ '🎻': ['user_artist_efe'] }),
+      0, '2026-11-16T08:30:00Z'
+    );
+    insertMsg.run(
+      'cmsg_caz_3', 'ch_caz_genel', 'comm_istanbul_caz', 'user_hotel_mgr', 'Deniz Akın',
+      hasHotel.avatar_url || '', 'Harika bir topluluk olmuş. Aralık sonu teras akşamları için yeni oda müziği seçkilerimizi yakında duyuracağız.',
+      JSON.stringify({ '👍': ['user_artist_efe', 'user_trio_selin'] }),
+      0, '2026-11-16T08:45:00Z'
+    );
+
+    // 2. Sahne Teknolojileri & Akustik Forumu
+    const techOwner = hasTech ? 'user_tech_pro' : 'user_hotel_mgr';
+    insertComm.run(
+      'comm_sahne_teknik',
+      'sahne-teknolojileri-akustik',
+      'Sahne Teknolojileri & Akustik Forumu',
+      'Ses mühendisleri, ışık tasarımcıları, teknik rider hazırlayan sanatçılar ve salon yöneticileri için teknik paylaşım topluluğu.',
+      'Bileşik Sanatlar',
+      'İstanbul',
+      '',
+      '',
+      'public',
+      techOwner,
+      1,
+      'Doğrulanmış Teknik Ağ',
+      now
+    );
+    insertMember.run('comm_sahne_teknik', techOwner, 'owner', now);
+    insertMember.run('comm_sahne_teknik', 'user_artist_efe', 'member', now);
+    insertMember.run('comm_sahne_teknik', 'user_trio_selin', 'member', now);
+
+    insertChannel.run('ch_tek_duyuru', 'comm_sahne_teknik', 'duyurular', 'Duyurular', 'Teknik standartlar, envanter güncellemeleri ve güvenlik notları.', 'announcement', 1, 0, now);
+    insertChannel.run('ch_tek_genel', 'comm_sahne_teknik', 'genel', '#genel', 'Mikrofonlama, IEM sistemleri, DMX sahne planlaması ve sorular.', 'discussion', 0, 1, now);
+    insertChannel.run('ch_tek_ekipman', 'comm_sahne_teknik', 'ekipman-danisma', '#ekipman-danisma', 'Mekân akustiği ve backline ekipman önerileri.', 'discussion', 0, 2, now);
+
+    insertMsg.run(
+      'cmsg_tek_1', 'ch_tek_duyuru', 'comm_sahne_teknik', techOwner, hasTech ? 'Ses ve Sahne Teknik Prodüksiyon' : 'Deniz Akın',
+      hasTech?.avatar_url || '', 'Kış dönemi salon kurulumlarında stage plot ve I/O patch listelerinizi etkinlikten en az 48 saat önce Prodüksiyon Masasına yüklemeniz önerilir.',
+      JSON.stringify({ '✅': ['user_artist_efe'] }),
+      1, '2026-11-16T09:00:00Z'
+    );
+    insertMsg.run(
+      'cmsg_tek_2', 'ch_tek_genel', 'comm_sahne_teknik', 'user_artist_efe', 'Efe Özkan',
+      hasEfe.avatar_url || '', 'Akustik kuyruklu piyano için kapalı sahnede DPA 4099 vs KM184 stereo çifti deneyenlerin geri bildirimlerini merak ediyorum.',
+      JSON.stringify({}),
+      0, '2026-11-16T09:15:00Z'
+    );
+
+    // 3. Kültür Mekânları & Organizatörler Birliği
+    insertComm.run(
+      'comm_kultur_mekan',
+      'kultur-mekanlari-organizatorler',
+      'Kültür Mekânları & Organizatörler Birliği',
+      'Bağımsız sahneler, kültür merkezleri, küratörler ve organizatörler arasında sezon planlama ve erişilebilirlik deneyimi paylaşımı.',
+      'Sahne & Tiyatro',
+      'Ankara',
+      '',
+      '',
+      'public',
+      'user_hotel_mgr',
+      0,
+      '',
+      now
+    );
+    insertMember.run('comm_kultur_mekan', 'user_hotel_mgr', 'owner', now);
+    insertMember.run('comm_kultur_mekan', 'user_trio_selin', 'member', now);
+
+    insertChannel.run('ch_mekan_duyuru', 'comm_kultur_mekan', 'duyurular', 'Duyurular', 'Kurumsal kültür takvimi ve ortak turne duyuruları.', 'announcement', 1, 0, now);
+    insertChannel.run('ch_mekan_genel', 'comm_kultur_mekan', 'genel', '#genel', 'Mekân iş birlikleri ve bilet/kitle paylaşımı.', 'discussion', 0, 1, now);
+
+    insertMsg.run(
+      'cmsg_mek_1', 'ch_mekan_duyuru', 'comm_kultur_mekan', 'user_hotel_mgr', 'Deniz Akın',
+      hasHotel.avatar_url || '', 'Erişilebilir Sanat kontrol listesini tamamlayan kültür mekânları artık etkinlik akışında öncelikli rozet almaktadır.',
+      JSON.stringify({ '✨': ['user_trio_selin'] }),
+      1, '2026-11-16T09:30:00Z'
     );
   });
 
