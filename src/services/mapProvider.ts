@@ -7,7 +7,7 @@ export interface MapMarker {
   badge?: string;
   latitude: number;
   longitude: number;
-  kind?: 'event' | 'venue' | 'artist' | 'business';
+  kind?: 'event' | 'venue' | 'artist' | 'business' | 'listing';
   isMasked?: boolean;
   privacyRadiusMeters?: number;
   active?: boolean;

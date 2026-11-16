@@ -309,6 +309,13 @@ export function mapListing(row: any): Listing {
     originalListingId: row.original_listing_id ?? undefined,
     urgentReason: row.urgent_reason ?? undefined,
     applicationsCount: Number(row.applications_count || 0),
+    ...(() => {
+      const fallback = resolveLocalTurkishCoordinates(row.city, row.district || row.venue_name);
+      return {
+        latitude: row.latitude != null ? Number(row.latitude) : fallback?.latitude,
+        longitude: row.longitude != null ? Number(row.longitude) : fallback?.longitude,
+      };
+    })(),
     createdAt: row.created_at,
   };
 }
@@ -348,6 +355,8 @@ export function mapBooking(row: any): Booking {
     performerName: row.performer_name,
     performerAvatar: row.performer_avatar,
     eventDate: row.event_date,
+    startTime: row.start_time || undefined,
+    endTime: row.end_time || undefined,
     venueName: row.venue_name,
     city: row.city,
     netPayoutAmount: Number(row.net_payout_amount || 0),

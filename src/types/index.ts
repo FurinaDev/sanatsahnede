@@ -310,6 +310,8 @@ export interface Listing {
   originalListingId?: string;
   urgentReason?: string;
   applicationsCount: number;
+  latitude?: number;
+  longitude?: number;
   createdAt: string;
 }
 
@@ -357,6 +359,8 @@ export interface Booking {
   performerName: string;
   performerAvatar: string;
   eventDate: string;
+  startTime?: string;
+  endTime?: string;
   venueName: string;
   city: string;
   netPayoutAmount: number; // What artist gets
@@ -780,6 +784,13 @@ export interface ProductionWorkspace {
   updatedAt: string;
 }
 
+export interface ProjectMeeting {
+  id: string;
+  title: string;
+  meetingDate: string;
+  notes: string;
+}
+
 export interface ProjectItem {
   id: string;
   ownerUserId: string;
@@ -798,7 +809,7 @@ export interface ProjectItem {
   rolesNeeded: { id: string; roleTitle: string; discipline: string; count: number }[];
   members: { id: string; userId: string; name: string; roleTitle: string; status: 'invited' | 'active' | 'left' }[];
   tasks: { id: string; title: string; assigneeName: string; dueDate: string; status: 'todo' | 'doing' | 'done' }[];
-  meetings: { id: string; title: string; meetingDate: string; notes: string }[];
+  meetings: ProjectMeeting[];
   expenses: { id: string; title: string; amount: number; recordedAt: string }[];
   files: { id: string; name: string; url: string; uploadedBy: string }[];
   rightsAgreement: string;
@@ -1204,4 +1215,50 @@ export interface Community {
   createdAt: string;
 }
 
+export type UnifiedSearchCategory =
+  | 'listing'
+  | 'artist'
+  | 'ensemble'
+  | 'business'
+  | 'event'
+  | 'opportunity'
+  | 'community'
+  | 'post';
 
+export interface UnifiedSearchHit {
+  id: string;
+  category: UnifiedSearchCategory;
+  title: string;
+  subtitle: string;
+  meta: string;
+  city: string;
+  discipline: string;
+  score: number;
+  avatarUrl?: string;
+  isVerified?: boolean;
+  verifiedLabel?: string;
+  targetView: string;
+  entityId?: string;
+}
+
+export interface UnifiedSearchResponse {
+  query: string;
+  city: string;
+  discipline: string;
+  totalCount: number;
+  counts: Record<UnifiedSearchCategory, number>;
+  grouped: Record<UnifiedSearchCategory, UnifiedSearchHit[]>;
+  topHits: UnifiedSearchHit[];
+}
+
+export interface UserPreferences {
+  userId: string;
+  notifMessages: boolean;
+  notifBookings: boolean;
+  notifFollowers: boolean;
+  notifCommunity: boolean;
+  notifEmergency: boolean;
+  showOnlineStatus: boolean;
+  allowDirectMessages: boolean;
+  updatedAt: string;
+}

@@ -193,6 +193,12 @@ export function canReleaseEscrowPayout(input: {
 export interface SmartMatchExplanation {
   entityId: string;
   entityName: string;
+  entityType?: 'artist' | 'ensemble';
+  city?: string;
+  subtitle?: string;
+  isVerified?: boolean;
+  isAvailableThisWeek?: boolean;
+  ratingAvg?: number;
   criteria: {
     label: string;
     level: 'tam' | 'yüksek' | 'uygun' | 'kısmi';
@@ -268,8 +274,259 @@ export function explainArtistListingMatch(
   return {
     entityId: artist.id,
     entityName: artist.fullName,
+    entityType: 'artist',
+    city: artist.city,
+    isVerified: artist.isVerified,
     criteria,
     matchedCriteriaCount,
   };
 }
 
+/**
+ * Unified Stage 6 explainable smart match for both individual artists and ensembles.
+ */
+export function explainPerformerListingMatch(
+  listing: {
+    city: string;
+    discipline?: string;
+    genres: string[];
+    requiredInstruments: string[];
+    targetEnsembleType?: string;
+    eventDate: string;
+    soundSystemProvided: boolean;
+  },
+  performer: {
+    id: string;
+    name: string;
+    entityType: 'artist' | 'ensemble';
+    city: string;
+    discipline?: string;
+    genres: string[];
+    instruments: string[];
+    ensembleType?: string;
+    subtitle?: string;
+    isVerified: boolean;
+    isAvailableThisWeek?: boolean;
+    completedJobsCount: number;
+    ratingAvg?: number;
+  },
+  hasCalendarConflict: boolean
+): SmartMatchExplanation {
+  const criteria: SmartMatchExplanation['criteria'] = [];
+
+  criteria.push({
+    label: 'Tarih & Müsaitlik',
+    level: hasCalendarConflict
+      ? 'kısmi'
+      : performer.isAvailableThisWeek
+      ? 'tam'
+      : 'yüksek',
+    reason: hasCalendarConflict
+      ? `${listing.eventDate} tarihinde takvim çakışması mevcut`
+      : performer.isAvailableThisWeek
+      ? `${listing.eventDate} için takvim müsait · Bu hafta sahneye açık`
+      : `${listing.eventDate} tarihinde takvim müsait`,
+  });
+
+  const cityMatch = performer.city.toLowerCase() === listing.city.toLowerCase();
+  criteria.push({
+    label: 'Konum Uyumu',
+    level: cityMatch ? 'tam' : 'uygun',
+    reason: cityMatch
+      ? `Aynı şehir (${listing.city})`
+      : `${performer.city} merkezli — seyahat planlaması gerekir`,
+  });
+
+  const listingDisc = (listing.discipline || 'Müzik').toLowerCase();
+  const perfDisc = (performer.discipline || 'Müzik').toLowerCase();
+  const disciplineMatch = listingDisc === perfDisc;
+  const genreOverlap = performer.genres.filter((g) => listing.genres.includes(g));
+  const instOverlap = performer.instruments.filter((i) => listing.requiredInstruments.includes(i));
+  const ensembleFormatMatch =
+    performer.entityType === 'ensemble' &&
+    listing.targetEnsembleType &&
+    performer.ensembleType &&
+    listing.targetEnsembleType.toLowerCase() === performer.ensembleType.toLowerCase();
+
+  const repLevel: 'tam' | 'yüksek' | 'uygun' | 'kısmi' =
+    disciplineMatch && (instOverlap.length > 0 || ensembleFormatMatch) && genreOverlap.length > 0
+      ? 'tam'
+      : disciplineMatch && (genreOverlap.length > 0 || instOverlap.length > 0 || ensembleFormatMatch)
+      ? 'yüksek'
+      : disciplineMatch
+      ? 'uygun'
+      : 'kısmi';
+
+  const matchedTags = [
+    ...(disciplineMatch ? [performer.discipline || 'Müzik'] : []),
+    ...instOverlap,
+    ...genreOverlap,
+    ...(ensembleFormatMatch && performer.ensembleType ? [performer.ensembleType] : []),
+  ];
+
+  criteria.push({
+    label: 'Disiplin & Repertuvar',
+    level: repLevel,
+    reason:
+      matchedTags.length > 0
+        ? `Eşleşen alanlar: ${Array.from(new Set(matchedTags)).join(', ')}`
+        : 'Alternatif disiplin / repertuvar uyarlaması gerekir',
+  });
+
+  criteria.push({
+    label: 'Doğrulama & Sahne Sicili',
+    level: performer.isVerified && performer.completedJobsCount > 0 ? 'tam' : performer.isVerified ? 'yüksek' : 'uygun',
+    reason: performer.isVerified
+      ? `${performer.entityType === 'ensemble' ? 'Doğrulanmış topluluk' : 'Doğrulanmış sanatçı'} · ${performer.completedJobsCount} tamamlanan sahne`
+      : 'Doğrulama süreci tamamlanmamış',
+  });
+
+  const matchedCriteriaCount = criteria.filter((c) => c.level === 'tam' || c.level === 'yüksek').length;
+
+  return {
+    entityId: performer.id,
+    entityName: performer.name,
+    entityType: performer.entityType,
+    city: performer.city,
+    subtitle: performer.subtitle,
+    isVerified: performer.isVerified,
+    isAvailableThisWeek: performer.isAvailableThisWeek,
+    ratingAvg: performer.ratingAvg,
+    criteria,
+    matchedCriteriaCount,
+  };
+}
+
+export interface RecommendedListingMatch {
+  listingId: string;
+  performerType: 'individual' | 'ensemble';
+  performerId: string;
+  performerName: string;
+  hasCalendarConflict: boolean;
+  matchedCriteriaCount: number;
+  criteria: SmartMatchExplanation['criteria'];
+}
+
+export function explainRecommendedListingForPerformer(
+  performer: {
+    id: string;
+    name: string;
+    entityType: 'artist' | 'ensemble';
+    city: string;
+    discipline?: string;
+    genres: string[];
+    instruments: string[];
+    ensembleType?: string;
+    isVerified: boolean;
+    isAvailableThisWeek?: boolean;
+    completedJobsCount: number;
+  },
+  listing: {
+    id: string;
+    city: string;
+    discipline?: string;
+    genres: string[];
+    requiredInstruments: string[];
+    targetEnsembleType?: string;
+    eventDate: string;
+    soundSystemProvided: boolean;
+    isReplacement?: boolean;
+  },
+  hasCalendarConflict: boolean
+): RecommendedListingMatch {
+  const explanation = explainPerformerListingMatch(listing, performer, hasCalendarConflict);
+  return {
+    listingId: listing.id,
+    performerType: performer.entityType === 'ensemble' ? 'ensemble' : 'individual',
+    performerId: performer.id,
+    performerName: performer.name,
+    hasCalendarConflict,
+    matchedCriteriaCount: explanation.matchedCriteriaCount,
+    criteria: explanation.criteria,
+  };
+}
+
+export interface BookingReceiptSummary {
+  bookingId: string;
+  commissionModelLabel: string;
+  paymentStatusLabel: string;
+  bookingStatusLabel: string;
+  dualContractSigned: boolean;
+  dualCompletionConfirmed: boolean;
+  totalHeldAmount: number;
+  totalReleasedAmount: number;
+  totalRefundedAmount: number;
+  netPerformerPayout: number;
+  platformCommissionAmount: number;
+  employerGrossTotal: number;
+}
+
+export function buildBookingReceiptSummary(
+  booking: {
+    id: string;
+    commissionModel: CommissionModel;
+    commissionRate: number;
+    netPayoutAmount: number;
+    commissionAmount: number;
+    grossAmount: number;
+    status: string;
+    paymentStatus: string;
+    contractTermsAcceptedByEmployer: boolean;
+    contractTermsAcceptedByPerformer: boolean;
+    performerCompletedAt?: string | null;
+    employerCompletedAt?: string | null;
+  },
+  ledgerEntries: Array<{ entryType: string; amount: number }>
+): BookingReceiptSummary {
+  const paymentStatusLabels: Record<string, string> = {
+    unpaid: 'Ödeme Bekleniyor',
+    held_sandbox: 'Güvence Havuzunda Bloke (Sandbox)',
+    held_live: 'Güvence Havuzunda Bloke (Canlı)',
+    released: 'Hakediş İcracıya Aktarıldı',
+    refunded: 'İade Edildi',
+    partially_refunded: 'Kısmi İade Edildi',
+  };
+
+  const bookingStatusLabels: Record<string, string> = {
+    agreement_pending: 'Sözleşme Onayı Bekleniyor',
+    payment_pending: 'Güvence Ödemesi Bekleniyor',
+    confirmed: 'Rezervasyon Kesinleşti',
+    performer_completed: 'İcracı Tamamladı (İşveren Onayı Bekleniyor)',
+    employer_completed: 'İşveren Onayladı (İcracı Onayı Bekleniyor)',
+    completed: 'Tamamlandı & Hakediş Serbest',
+    cancelled: 'İptal Edildi',
+    in_dispute: 'Uyuşmazlık İncelemesinde (Donduruldu)',
+  };
+
+  const totalHeldAmount = ledgerEntries
+    .filter((e) => e.entryType === 'payment_hold')
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+  const totalReleasedAmount = ledgerEntries
+    .filter((e) => e.entryType === 'payout_release')
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+  const totalRefundedAmount = ledgerEntries
+    .filter((e) => e.entryType === 'refund' || e.entryType === 'partial_refund')
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+  return {
+    bookingId: booking.id,
+    commissionModelLabel:
+      booking.commissionModel === 'A_EMPLOYER_PAYS'
+        ? `Model A — %${booking.commissionRate} Platform Komisyonu İşveren Tarafından Ödenir`
+        : `Model B — %${booking.commissionRate} Platform Komisyonu Brüt Bütçeden Düşülür`,
+    paymentStatusLabel: paymentStatusLabels[booking.paymentStatus] || booking.paymentStatus,
+    bookingStatusLabel: bookingStatusLabels[booking.status] || booking.status,
+    dualContractSigned: Boolean(
+      booking.contractTermsAcceptedByEmployer && booking.contractTermsAcceptedByPerformer
+    ),
+    dualCompletionConfirmed: Boolean(booking.performerCompletedAt && booking.employerCompletedAt),
+    totalHeldAmount,
+    totalReleasedAmount,
+    totalRefundedAmount,
+    netPerformerPayout: Number(booking.netPayoutAmount || 0),
+    platformCommissionAmount: Number(booking.commissionAmount || 0),
+    employerGrossTotal: Number(booking.grossAmount || 0),
+  };
+}

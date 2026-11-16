@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { EnsembleType, Instrument } from '../types';
+import { EnsembleType, Instrument, Listing } from '../types';
+import { apiRequest } from '../services/api';
+import { BookingReceiptModal } from './ui/BookingReceiptModal';
 import {
   UserPlus,
   ShieldCheck,
@@ -12,8 +14,11 @@ import {
   AlertCircle,
   Mail,
   X,
+  FileText,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
-import { formatCurrencyTRY } from '../utils/businessLogic';
+import { formatCurrencyTRY, RecommendedListingMatch } from '../utils/businessLogic';
 
 export const EnsembleDashboard: React.FC = () => {
   const {
@@ -74,6 +79,30 @@ export const EnsembleDashboard: React.FC = () => {
   const [verifDocUrl, setVerifDocUrl] = useState('');
   const [verifSubmitted, setVerifSubmitted] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [receiptBookingId, setReceiptBookingId] = useState<string | null>(null);
+  const [recommendedListings, setRecommendedListings] = useState<
+    Array<RecommendedListingMatch & { listing: Listing; alreadyApplied: boolean }>
+  >([]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !ensemble) {
+      setRecommendedListings([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest<{ recommendations: Array<RecommendedListingMatch & { listing: Listing; alreadyApplied: boolean }> }>(
+      '/api/performers/me/recommended-listings'
+    )
+      .then((res) => {
+        if (!cancelled) setRecommendedListings(res.recommendations || []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecommendedListings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, ensemble?.id]);
 
   if (!isAuthenticated) {
     return (
@@ -385,6 +414,14 @@ export const EnsembleDashboard: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
+                      onClick={() => setReceiptBookingId(b.id)}
+                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#13213e] border border-[#e2e8f0] dark:border-[#1e335a] font-bold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText className="w-3 h-3 text-[#f25922]" />
+                      <span>Sözleşme &amp; Güvence Dekontu</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => navigateTo('production_desk', b.id)}
                       className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#13213e] border border-[#e2e8f0] dark:border-[#1e335a] font-bold inline-flex items-center gap-1 cursor-pointer"
                     >
@@ -417,6 +454,74 @@ export const EnsembleDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Recommended Listings for Ensemble */}
+      {recommendedListings.length > 0 && (
+        <div className="bg-white dark:bg-[#13213e] rounded-3xl p-5 border border-[#e2e8f0] dark:border-[#1e335a] shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#f25922]" />
+              <h2 className="font-display text-sm font-bold text-[#0f172a] dark:text-white">
+                Topluluğunuza Uygun Sahne İlanları (Akıllı Eşleşme)
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigateTo('listings')}
+              className="text-xs font-bold text-[#f25922] hover:underline cursor-pointer"
+            >
+              Tüm İlanları Gör
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {recommendedListings.slice(0, 4).map((rec) => (
+              <div
+                key={rec.listing.id}
+                className="p-3.5 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] flex flex-col justify-between gap-2.5"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                        {rec.matchedCriteriaCount}/4 Uyum
+                      </span>
+                      {rec.listing.isReplacement && (
+                        <span className="px-1.5 py-0.5 rounded bg-[#f25922] text-white text-[9px] font-bold uppercase">
+                          Acil İkame
+                        </span>
+                      )}
+                      {rec.hasCalendarConflict && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] font-bold">
+                          Takvim Çakışması
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-extrabold text-[#0f172a] dark:text-white tabular-nums shrink-0">
+                      {formatCurrencyTRY(rec.listing.budgetAmount)}
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold text-[#0f172a] dark:text-white line-clamp-1">
+                    {rec.listing.title}
+                  </div>
+                  <div className="text-[11px] text-[#64748b] dark:text-slate-400">
+                    {rec.listing.businessName} · {rec.listing.city} · {rec.listing.eventDate}
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('listing_detail', rec.listing.id)}
+                    className="px-3 py-1.5 rounded-lg bg-[#16274e] dark:bg-[#f25922] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>İlanı İncele &amp; Başvur</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Ensemble Applications, Offers & Verification */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -663,6 +768,11 @@ export const EnsembleDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      <BookingReceiptModal
+        bookingId={receiptBookingId}
+        onClose={() => setReceiptBookingId(null)}
+      />
     </div>
   );
 };

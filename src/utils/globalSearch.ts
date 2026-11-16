@@ -70,7 +70,7 @@ export function normalizeTurkish(value: string): string {
   return value.trim().toLocaleLowerCase('tr-TR');
 }
 
-function scoreFieldMatch(
+export function scoreFieldMatch(
   normalizedQuery: string,
   primaryText: string,
   secondaryFields: string[]

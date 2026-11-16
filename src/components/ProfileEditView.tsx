@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { uploadMediaFile } from '../services/api';
+import { apiRequest, uploadMediaFile } from '../services/api';
 import {
   ArtDiscipline,
   DisciplineShowcase,
@@ -9,6 +9,7 @@ import {
   EducationItem,
   ExperienceItem,
   MediaItem,
+  UserPreferences,
 } from '../types';
 import { ART_DISCIPLINES, DISCIPLINE_SPECIALTIES, resolveDiscipline } from '../utils/disciplineConfig';
 import {
@@ -32,6 +33,7 @@ import {
   Lock,
   Globe,
   ExternalLink,
+  Bell,
 } from 'lucide-react';
 import { AppView } from '../context/AppContext';
 
@@ -202,6 +204,98 @@ export const SocialRelationshipsCard: React.FC = () => {
   );
 };
 
+export const NotificationPrivacyPreferencesCard: React.FC = () => {
+  const { isAuthenticated } = useApp();
+  const [prefs, setPrefs] = useState<UserPreferences | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    apiRequest<{ preferences: UserPreferences }>('/api/social/preferences')
+      .then((res) => {
+        if (!cancelled) setPrefs(res.preferences);
+      })
+      .catch(() => {
+        // fallback cleanly
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated || !prefs) return null;
+
+  const togglePref = async (key: keyof Omit<UserPreferences, 'userId' | 'updatedAt'>) => {
+    const nextVal = !prefs[key];
+    setPrefs({ ...prefs, [key]: nextVal });
+    setSaving(true);
+    setStatusMsg(null);
+    try {
+      const res = await apiRequest<{ preferences: UserPreferences }>('/api/social/preferences', {
+        method: 'PUT',
+        body: { [key]: nextVal },
+      });
+      setPrefs(res.preferences);
+      setStatusMsg('Tercihler kaydedildi.');
+    } catch {
+      setPrefs(prefs);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const items: Array<{ key: keyof Omit<UserPreferences, 'userId' | 'updatedAt'>; label: string; desc: string }> = [
+    { key: 'notifMessages', label: 'Mesaj Bildirimleri', desc: 'Yeni sohbet ve mesaj isteklerinde uyarı al' },
+    { key: 'notifBookings', label: 'İlan & Rezervasyon Uyarıları', desc: 'Başvuru seçimi, teklif ve sahne onayları' },
+    { key: 'notifEmergency', label: 'Acil Sahne İkame Çağrıları', desc: 'Şehir ve disiplininize uygun acil sahne fırsatları' },
+    { key: 'notifFollowers', label: 'Yeni Takipçi Bildirimleri', desc: 'Profilinizi takip eden kullanıcı bildirimleri' },
+    { key: 'notifCommunity', label: 'Topluluk & Kanal Hareketleri', desc: 'Üyesi olduğunuz kanallardan duyuru ve yanıtlar' },
+    { key: 'allowDirectMessages', label: 'Doğrudan Mesaj İsteklerine İzin Ver', desc: 'Tanımadığınız üyelerden ilk mesaj isteği alın' },
+    { key: 'showOnlineStatus', label: 'Çevrimiçi Durumunu Göster', desc: 'Mesajlaşma listesinde aktiflik göstergesi' },
+  ];
+
+  return (
+    <div className="bg-white dark:bg-[#13213e] p-6 sm:p-8 rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] shadow-xs space-y-4 text-left">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#e2e8f0] dark:border-[#1e335a]">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-[#f25922]" />
+          <h3 className="text-sm font-bold text-[#0f172a] dark:text-white">
+            Bildirim ve Mesajlaşma Tercihleri
+          </h3>
+        </div>
+        {statusMsg && (
+          <span role="status" className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            {statusMsg}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((item) => (
+          <label
+            key={item.key}
+            className="flex items-start gap-3 p-3 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] cursor-pointer hover:border-[#f25922]/40 transition-colors"
+          >
+            <input
+              type="checkbox"
+              disabled={saving}
+              checked={Boolean(prefs[item.key])}
+              onChange={() => togglePref(item.key)}
+              className="mt-0.5 w-4 h-4 accent-[#f25922] rounded cursor-pointer"
+            />
+            <div>
+              <div className="text-xs font-bold text-[#0f172a] dark:text-white">{item.label}</div>
+              <div className="text-[11px] text-[#64748b] dark:text-slate-400 mt-0.5">{item.desc}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const ProfileEditView: React.FC = () => {
   const {
     artists,
@@ -234,6 +328,7 @@ export const ProfileEditView: React.FC = () => {
   if (!currentArtist) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <NotificationPrivacyPreferencesCard />
         <SocialRelationshipsCard />
 
         <div className="p-8 bg-white dark:bg-[#111A2E] rounded-3xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
@@ -959,6 +1054,9 @@ const ProfileEditForm: React.FC<{ currentArtist: NonNullable<ReturnType<typeof u
             </div>
           </div>
         </div>
+
+        {/* Notification & Privacy Preferences */}
+        <NotificationPrivacyPreferencesCard />
 
         {/* Blocked & Muted Users */}
         <SocialRelationshipsCard />

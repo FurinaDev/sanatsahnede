@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatCurrencyTRY } from '../utils/businessLogic';
+import { formatCurrencyTRY, RecommendedListingMatch } from '../utils/businessLogic';
+import { apiRequest } from '../services/api';
+import { Listing } from '../types';
+import { BookingReceiptModal } from './ui/BookingReceiptModal';
 import {
   CheckCircle2,
   Star,
@@ -12,9 +15,10 @@ import {
   Briefcase,
   Award,
   CalendarDays,
-  X,
   Pencil,
   AlertCircle,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 
 export const ArtistDashboard: React.FC = () => {
@@ -54,7 +58,10 @@ export const ArtistDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'bookings' | 'applications' | 'offers' | 'payouts' | 'verification'>('bookings');
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
-  const [contractViewBookingId, setContractViewBookingId] = useState<string | null>(null);
+  const [receiptBookingId, setReceiptBookingId] = useState<string | null>(null);
+  const [recommendedListings, setRecommendedListings] = useState<
+    Array<RecommendedListingMatch & { listing: Listing; alreadyApplied: boolean }>
+  >([]);
   const [disputeBookingId, setDisputeBookingId] = useState<string | null>(null);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeEvidence, setDisputeEvidence] = useState('');
@@ -70,6 +77,26 @@ export const ArtistDashboard: React.FC = () => {
   const [availNoteDraft, setAvailNoteDraft] = useState(artist?.availabilityNote || '');
   const [availUpdating, setAvailUpdating] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || !artist) {
+      setRecommendedListings([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest<{ recommendations: Array<RecommendedListingMatch & { listing: Listing; alreadyApplied: boolean }> }>(
+      '/api/performers/me/recommended-listings'
+    )
+      .then((res) => {
+        if (!cancelled) setRecommendedListings(res.recommendations || []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecommendedListings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, artist?.id]);
 
   if (!isAuthenticated) {
     return (
@@ -139,10 +166,6 @@ export const ArtistDashboard: React.FC = () => {
     }
     return res;
   };
-
-  const activeContract = contractViewBookingId
-    ? contracts.find((c) => c.bookingId === contractViewBookingId)
-    : undefined;
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8 text-left space-y-6">
@@ -323,6 +346,79 @@ export const ArtistDashboard: React.FC = () => {
         </div>
       </div>
 
+        {/* Recommended Listings Smart Match Card */}
+        {recommendedListings.length > 0 && (
+          <div className="bg-white dark:bg-[#13213e] rounded-3xl p-5 border border-[#e2e8f0] dark:border-[#1e335a] shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#f25922]" />
+                <h2 className="font-display text-sm font-bold text-[#0f172a] dark:text-white">
+                  Bana Uygun Sahne İlanları (Akıllı Eşleşme)
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateTo('listings')}
+                className="text-xs font-bold text-[#f25922] hover:underline cursor-pointer"
+              >
+                Tüm İlanları Gör
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {recommendedListings.slice(0, 4).map((rec) => (
+                <div
+                  key={rec.listing.id}
+                  className="p-3.5 rounded-2xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] flex flex-col justify-between gap-2.5"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          {rec.matchedCriteriaCount}/4 Uyum
+                        </span>
+                        {rec.listing.isReplacement && (
+                          <span className="px-1.5 py-0.5 rounded bg-[#f25922] text-white text-[9px] font-bold uppercase">
+                            Acil İkame
+                          </span>
+                        )}
+                        {rec.hasCalendarConflict && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] font-bold">
+                            Takvim Çakışması
+                          </span>
+                        )}
+                        {rec.alreadyApplied && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                            Başvuruldu
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-extrabold text-[#0f172a] dark:text-white tabular-nums shrink-0">
+                        {formatCurrencyTRY(rec.listing.budgetAmount)}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-[#0f172a] dark:text-white line-clamp-1">
+                      {rec.listing.title}
+                    </div>
+                    <div className="text-[11px] text-[#64748b] dark:text-slate-400">
+                      {rec.listing.businessName} · {rec.listing.city} · {rec.listing.eventDate}
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('listing_detail', rec.listing.id)}
+                      className="px-3 py-1.5 rounded-lg bg-[#16274e] dark:bg-[#f25922] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>İlanı İncele &amp; Başvur</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       {actionFeedback && (
         <div
           role="alert"
@@ -424,11 +520,11 @@ export const ArtistDashboard: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setContractViewBookingId(b.id)}
+                          onClick={() => setReceiptBookingId(b.id)}
                           className="px-3 py-2 text-xs font-bold text-[#16274e] dark:text-white bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] rounded-xl flex items-center gap-1 cursor-pointer"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#f25922]" />
-                          <span>Sözleşme</span>
+                          <span>Sözleşme &amp; Güvence Dekontu</span>
                         </button>
 
                         <button
@@ -664,27 +760,10 @@ export const ArtistDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* DIGITAL CONTRACT MODAL */}
-      {contractViewBookingId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#13213e] rounded-3xl max-w-lg w-full p-6 text-left shadow-2xl border border-[#e2e8f0] dark:border-[#1e335a] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#0f172a] dark:text-white">{activeContract?.title || 'Dijital Sözleşme'}</h3>
-              <button type="button" onClick={() => setContractViewBookingId(null)} className="cursor-pointer">
-                <X className="w-5 h-5 text-[#64748b]" />
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap text-xs text-[#475569] dark:text-slate-300 bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] font-sans leading-relaxed">
-              {activeContract?.termsText || 'Sözleşme detayı bulunamadı.'}
-            </pre>
-            {activeContract?.disclaimer && (
-              <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl">
-                {activeContract.disclaimer}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <BookingReceiptModal
+        bookingId={receiptBookingId}
+        onClose={() => setReceiptBookingId(null)}
+      />
 
       {/* COUNTER OFFER MODAL */}
       {counterOfferId && (

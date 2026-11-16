@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp, AppView } from '../context/AppContext';
 import { BrandSymbol } from './ui/BrandSymbol';
+import { GlobalSearchModal } from './ui/GlobalSearchModal';
 import { RoleType } from '../types';
 import {
   ShieldCheck,
@@ -19,6 +20,7 @@ import {
   Hash,
   Compass,
   Lock,
+  Search,
 } from 'lucide-react';
 
 const ROLE_LABELS: Record<RoleType, string> = {
@@ -59,6 +61,7 @@ export const Navbar: React.FC = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -76,6 +79,10 @@ export const Navbar: React.FC = () => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     };
     const handleEsc = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
       if (e.key === 'Escape') {
         setUserMenuOpen(false);
         setNotifOpen(false);
@@ -198,18 +205,18 @@ export const Navbar: React.FC = () => {
         aria-hidden="true"
         className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden opacity-[0.30] dark:opacity-[0.22] bg-repeat bg-center bg-[url('/src/assets/images/terracotta_pattern.png')] bg-[length:500px_auto] mix-blend-multiply dark:mix-blend-screen [filter:brightness(0.75)_contrast(3.2)_saturate(1.5)] dark:[filter:brightness(0.75)_contrast(3.2)_saturate(1.5)_invert(1)_hue-rotate(180deg)]"
       />
-      <div className="relative z-10 max-w-[1400px] 2xl:max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 h-16 sm:h-18 flex items-center justify-between gap-2 lg:gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4">
+      <div className="relative z-10 max-w-[1400px] 2xl:max-w-[1480px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 h-16 sm:h-18 flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4">
         {/* Brand Lockup */}
         <button
           type="button"
           onClick={() => navigateTo('home')}
           className="xl:justify-self-start flex items-center gap-1.5 sm:gap-2 group text-left shrink-0 focus:outline-hidden cursor-pointer"
         >
-          <div className="relative w-8 h-8 sm:w-9 sm:h-9 2xl:w-10 2xl:h-9 bg-[#E45424] rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-transform duration-200 group-hover:scale-105 shrink-0 px-1.5">
+          <div className="relative w-7 h-7 sm:w-9 sm:h-9 2xl:w-10 2xl:h-9 bg-[#E45424] rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-transform duration-200 group-hover:scale-105 shrink-0 px-1.5">
             <BrandSymbol className="w-full h-full text-white" strokeWidth={3.6} />
           </div>
           <div className="flex items-center shrink-0">
-            <span className="font-sans font-extrabold text-[13px] sm:text-sm 2xl:text-lg tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap">
+            <span className="font-sans font-extrabold text-[11.5px] sm:text-sm 2xl:text-lg tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap">
               SANAT<span className="text-[#E45424]">SAHNEDE</span>.COM
             </span>
           </div>
@@ -251,12 +258,21 @@ export const Navbar: React.FC = () => {
         </nav>
 
         {/* Right Utility & Action Zone */}
-        <div className="xl:justify-self-end flex items-center gap-1.5 shrink-0">
+        <div className="xl:justify-self-end flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <button
+            type="button"
+            aria-label="Platformda Ara"
+            title="Ara (Ctrl+K)"
+            onClick={() => setSearchOpen(true)}
+            className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+          >
+            <Search className="w-4 h-4" />
+          </button>
           <button
             type="button"
             aria-label="Tema Değiştir"
             onClick={() => setIsDark((prev) => !prev)}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
           >
             {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
           </button>
@@ -284,7 +300,7 @@ export const Navbar: React.FC = () => {
                   type="button"
                   aria-label="Bildirimler"
                   onClick={() => setNotifOpen((p) => !p)}
-                  className="relative p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                  className="relative p-1.5 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
                 >
                   <Bell className="w-4 h-4" />
                   {unreadCount > 0 && (
@@ -506,7 +522,7 @@ export const Navbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-2 text-slate-700 dark:text-slate-200 hover:text-[#E45424] focus:outline-hidden rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 cursor-pointer"
+            className="xl:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:text-[#E45424] focus:outline-hidden rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 cursor-pointer"
             aria-label="Menü"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -660,6 +676,7 @@ export const Navbar: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 };

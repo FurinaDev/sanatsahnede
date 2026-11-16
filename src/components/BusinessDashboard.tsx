@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { MusicGenre, EnsembleType, Instrument, ArtDiscipline } from '../types';
 import { formatCurrencyTRY, canBusinessCreateListing } from '../utils/businessLogic';
 import { ART_DISCIPLINES, CITY_LIST } from '../utils/disciplineConfig';
+import { BookingReceiptModal } from './ui/BookingReceiptModal';
 import {
   PlusCircle,
   FileText,
@@ -109,7 +110,7 @@ export const BusinessDashboard: React.FC = () => {
   const [reviewBookingId, setReviewBookingId] = useState<string | null>(null);
   const [reviewScore, setReviewScore] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
-  const [contractViewBookingId, setContractViewBookingId] = useState<string | null>(null);
+  const [receiptBookingId, setReceiptBookingId] = useState<string | null>(null);
   const [counterOfferId, setCounterOfferId] = useState<string | null>(null);
   const [counterAmount, setCounterAmount] = useState(20000);
   const [counterNote, setCounterNote] = useState('');
@@ -407,10 +408,6 @@ export const BusinessDashboard: React.FC = () => {
       setActionFeedback({ type: 'error', text: res.error || 'Doğrulama başvurusu gönderilemedi.' });
     }
   };
-
-  const activeContract = contractViewBookingId
-    ? contracts.find((c) => c.bookingId === contractViewBookingId)
-    : undefined;
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8 text-left space-y-6">
@@ -1015,11 +1012,11 @@ export const BusinessDashboard: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setContractViewBookingId(b.id)}
+                          onClick={() => setReceiptBookingId(b.id)}
                           className="px-3.5 py-2 text-xs font-bold text-[#16274e] dark:text-white bg-[#f1f3ff] dark:bg-[#0f1c38] rounded-xl flex items-center gap-1.5 cursor-pointer"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#f25922]" />
-                          <span>Dijital Sözleşmeyi Gör</span>
+                          <span>Sözleşme &amp; Güvence Dekontu</span>
                         </button>
                         <button
                           type="button"
@@ -1378,29 +1375,10 @@ export const BusinessDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* DIGITAL CONTRACT MODAL */}
-      {contractViewBookingId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#13213e] rounded-3xl max-w-lg w-full p-6 text-left shadow-2xl border border-[#e2e8f0] dark:border-[#1e335a] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#0f172a] dark:text-white">
-                {activeContract?.title || 'Dijital İcra Sözleşmesi'}
-              </h3>
-              <button type="button" onClick={() => setContractViewBookingId(null)} className="cursor-pointer">
-                <X className="w-5 h-5 text-[#64748b]" />
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap text-xs text-[#475569] dark:text-slate-300 bg-[#f8fafc] dark:bg-[#0f1c38] p-4 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] font-sans leading-relaxed">
-              {activeContract?.termsText || 'Sözleşme metni yükleniyor...'}
-            </pre>
-            {activeContract?.disclaimer && (
-              <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl">
-                {activeContract.disclaimer}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <BookingReceiptModal
+        bookingId={receiptBookingId}
+        onClose={() => setReceiptBookingId(null)}
+      />
 
       {/* COUNTER OFFER MODAL */}
       {counterOfferId && (

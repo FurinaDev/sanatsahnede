@@ -3,6 +3,11 @@ import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
 import { ProductionWorkspace } from '../types';
 import {
+  formatTechnicalRiderDocument,
+  generateIcsCalendarEvent,
+  triggerBrowserDownload,
+} from '../utils/exportHelpers';
+import {
   Sliders,
   Sparkles,
   Plus,
@@ -15,6 +20,9 @@ import {
   Truck,
   CheckSquare,
   Wrench,
+  Download,
+  Calendar,
+  Printer,
 } from 'lucide-react';
 
 interface ProductionDeskViewProps {
@@ -240,7 +248,45 @@ export const ProductionDeskView: React.FC<ProductionDeskViewProps> = ({ contextI
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={() => {
+              const doc = formatTechnicalRiderDocument(workspace);
+              triggerBrowserDownload(`teknik-rider-${workspace.contextId}.txt`, doc);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Download className="w-3.5 h-3.5 text-[#E45424]" />
+            <span>Rider (.txt)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const ics = generateIcsCalendarEvent({
+                uid: `prod-${workspace.id}`,
+                title: workspace.title,
+                description: `Soundcheck & Teknik Rider · ${workspace.rider.soundRequirements}`,
+                location: workspace.venueName,
+                eventDate: workspace.eventDate,
+                startTime: workspace.schedule[0]?.time || '18:00',
+                endTime: workspace.schedule[workspace.schedule.length - 1]?.time || '22:00',
+              });
+              triggerBrowserDownload(`sahne-takvimi-${workspace.contextId}.ics`, ics, 'text/calendar;charset=utf-8');
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Calendar className="w-3.5 h-3.5 text-[#E45424]" />
+            <span>Takvime Ekle (.ics)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Printer className="w-3.5 h-3.5 text-[#E45424]" />
+            <span>Yazdır</span>
+          </button>
           <button
             type="button"
             onClick={() => navigateTo('technical_match')}

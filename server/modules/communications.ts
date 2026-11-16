@@ -260,6 +260,14 @@ export function createCommunicationsRouter(db: DbInstance, providedHub?: Realtim
       const targetUserId = participants.find((id) => id !== req.user!.id)!;
       const isStaff = ['admin', 'moderator', 'support'].includes(req.user!.activeRole);
       if (!isStaff && !hasPriorRelationship(db, req.user!.id, targetUserId)) {
+        const targetPref = db
+          .prepare('SELECT allow_direct_messages FROM user_preferences WHERE user_id = ?')
+          .get(targetUserId) as { allow_direct_messages: number } | undefined;
+        if (targetPref && targetPref.allow_direct_messages === 0) {
+          return res.status(403).json({
+            error: 'Bu kullanıcı doğrudan mesaj isteklerini gizlilik tercihleriyle sınırlandırmış.',
+          });
+        }
         status = 'pending_request';
       }
     }

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
-import { Award, ShieldCheck, QrCode, Printer, Plus, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
+import { formatCareerPassportCsv, triggerBrowserDownload } from '../utils/exportHelpers';
+import { Award, ShieldCheck, QrCode, Printer, Plus, CheckCircle2, AlertCircle, Trash2, Download } from 'lucide-react';
 
 interface CareerPassportViewProps {
   artistId?: string;
@@ -97,7 +98,7 @@ export const CareerPassportView: React.FC<CareerPassportViewProps> = ({ artistId
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 no-print">
           <button
             type="button"
             onClick={handleLoadQr}
@@ -105,6 +106,18 @@ export const CareerPassportView: React.FC<CareerPassportViewProps> = ({ artistId
           >
             <QrCode className="w-4 h-4" />
             <span>Pasaport QR Üret</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!activeArtist) return;
+              const csv = formatCareerPassportCsv(activeArtist.fullName, records);
+              triggerBrowserDownload(`kariyer-pasaportu-${activeArtist.id}.csv`, csv, 'text/csv;charset=utf-8');
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Download className="w-4 h-4 text-[#E45424]" />
+            <span>CSV İndir</span>
           </button>
           <button
             type="button"
@@ -170,7 +183,7 @@ export const CareerPassportView: React.FC<CareerPassportViewProps> = ({ artistId
 
       {/* Add Manual Record */}
       {isAuthenticated && (
-        <form onSubmit={handleAddRecord} className="bg-white dark:bg-[#13213e] rounded-2xl border border-slate-200 dark:border-[#1e335a] p-6 space-y-4">
+        <form onSubmit={handleAddRecord} className="bg-white dark:bg-[#13213e] rounded-2xl border border-slate-200 dark:border-[#1e335a] p-6 space-y-4 no-print">
           <h2 className="font-bold text-sm text-[#16274e] dark:text-white flex items-center gap-2">
             <Plus className="w-4 h-4 text-[#E45424]" />
             <span>Platform Dışı Sahne Deneyimi Ekle</span>

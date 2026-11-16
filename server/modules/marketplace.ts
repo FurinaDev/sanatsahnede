@@ -6,6 +6,7 @@ import {
   mapBooking,
   mapContract,
   mapDispute,
+  mapEnsemble,
   mapIndividualProfile,
   mapLedgerEntry,
   mapListing,
@@ -13,24 +14,27 @@ import {
   mapProductionWorkspace,
   mapReview,
 } from '../db/mappers';
-import { newId, slugify } from '../utils/crypto';
+import { newId, slugify, hmacSha256 } from '../utils/crypto';
 import {
+  buildBookingReceiptSummary,
   calculateCancellationRate,
   calculateCommission,
   canReleaseEscrowPayout,
-  explainArtistListingMatch,
+  explainPerformerListingMatch,
+  explainRecommendedListingForPerformer,
   hasTimeConflict,
 } from '../../src/utils/businessLogic';
 import { INITIAL_SETTINGS } from '../../src/data/seedData';
 import { logAudit } from '../services/auditService';
 import { notifyUser } from '../services/notificationService';
+import { resolveLocalTurkishCoordinates } from '../services/geoService';
 import {
   getPaymentMode,
   initializeEscrowCheckout,
   signWebhookPayload,
   verifyWebhookSignature,
 } from '../services/paymentAdapter';
-import { isBlockedBetween } from '../services/socialGraphService';
+import { getMutualBlockedUserIds, isBlockedBetween } from '../services/socialGraphService';
 
 function getPlatformSettings(db: DbInstance) {
   const row = db
@@ -293,6 +297,7 @@ export function createMarketplaceRouter(db: DbInstance): Router {
     const isAdmin = req.user!.activeRole === 'admin' || req.user!.activeRole === 'moderator';
     const status = isAdmin ? 'active' : 'pending_moderation';
     const targetBiz = biz || (db.prepare('SELECT * FROM business_profiles LIMIT 1').get() as any);
+    const coords = resolveLocalTurkishCoordinates(city, district || venueName);
 
     db.prepare(`
       INSERT INTO listings (
@@ -302,8 +307,8 @@ export function createMarketplaceRouter(db: DbInstance): Router {
         event_date, start_time, end_time, application_deadline, city, district, venue_name,
         is_outdoor, repertoire_expectation, dress_code, sound_system_provided,
         transportation_provided, accommodation_provided, budget_amount, currency, status,
-        is_replacement, applications_count, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRY', ?, 0, 0, ?)
+        is_replacement, applications_count, latitude, longitude, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRY', ?, 0, 0, ?, ?, ?)
     `).run(
       id,
       targetBiz.id,
@@ -337,6 +342,8 @@ export function createMarketplaceRouter(db: DbInstance): Router {
       accommodationProvided ? 1 : 0,
       Number(budgetAmount),
       status,
+      coords?.latitude ?? null,
+      coords?.longitude ?? null,
       now
     );
 
@@ -404,6 +411,14 @@ export function createMarketplaceRouter(db: DbInstance): Router {
       return res.status(400).json({ error: 'Geçerli bir bütçe tutarı giriniz.' });
     }
 
+    const nextCity = city ?? listingRow.city;
+    const nextDistrict = district ?? listingRow.district;
+    const nextVenue = venueName ?? listingRow.venue_name;
+    const updatedCoords =
+      city !== undefined || district !== undefined || venueName !== undefined
+        ? resolveLocalTurkishCoordinates(nextCity, nextDistrict || nextVenue)
+        : null;
+
     db.prepare(`
       UPDATE listings SET
         title = COALESCE(?, title),
@@ -428,7 +443,9 @@ export function createMarketplaceRouter(db: DbInstance): Router {
         sound_system_provided = COALESCE(?, sound_system_provided),
         transportation_provided = COALESCE(?, transportation_provided),
         accommodation_provided = COALESCE(?, accommodation_provided),
-        budget_amount = COALESCE(?, budget_amount)
+        budget_amount = COALESCE(?, budget_amount),
+        latitude = COALESCE(?, latitude),
+        longitude = COALESCE(?, longitude)
       WHERE id = ?
     `).run(
       title !== undefined ? String(title).trim() : null,
@@ -454,6 +471,8 @@ export function createMarketplaceRouter(db: DbInstance): Router {
       transportationProvided !== undefined ? (transportationProvided ? 1 : 0) : null,
       accommodationProvided !== undefined ? (accommodationProvided ? 1 : 0) : null,
       budgetAmount !== undefined ? Number(budgetAmount) : null,
+      updatedCoords?.latitude ?? null,
+      updatedCoords?.longitude ?? null,
       listingRow.id
     );
 
@@ -491,34 +510,218 @@ export function createMarketplaceRouter(db: DbInstance): Router {
     return res.json({ success: true, listing: mapListing(updated) });
   });
 
-  // 9.7 Explainable Smart Match for a Listing
-  router.get('/listings/:id/smart-match', (req, res) => {
+  // 9.7 Explainable Smart Match v2 for a Listing (Artists + Ensembles, respecting mutual blocks)
+  router.get('/listings/:id/smart-match', (req: AuthedRequest, res) => {
     const row = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id) as any;
     if (!row) return res.status(404).json({ error: 'İlan bulunamadı.' });
     const listing = mapListing(row);
 
+    const blockedIds = getMutualBlockedUserIds(db, req.user?.id);
     const artistRows = db.prepare('SELECT * FROM individual_profiles WHERE is_verified = 1').all() as any[];
+    const ensembleRows = db.prepare('SELECT * FROM ensembles WHERE is_verified = 1').all() as any[];
+
     const bookedSlots = db
       .prepare(`SELECT owner_id, slot_date, start_time, end_time FROM availability_slots WHERE slot_date = ? AND slot_kind IN ('booked', 'blocked')`)
       .all(listing.eventDate) as any[];
+    const confirmedBookings = db
+      .prepare(
+        `SELECT performer_id, event_date, start_time, end_time FROM bookings WHERE event_date = ? AND status IN ('confirmed', 'performer_completed', 'employer_completed')`
+      )
+      .all(listing.eventDate) as any[];
 
-    const matches = artistRows
+    const checkPerformerConflict = (performerId: string) =>
+      bookedSlots.some(
+        (s) =>
+          s.owner_id === performerId &&
+          hasTimeConflict(
+            { date: listing.eventDate, startTime: listing.startTime, endTime: listing.endTime },
+            { date: s.slot_date, startTime: s.start_time, endTime: s.end_time }
+          )
+      ) ||
+      confirmedBookings.some(
+        (b) =>
+          b.performer_id === performerId &&
+          hasTimeConflict(
+            { date: listing.eventDate, startTime: listing.startTime, endTime: listing.endTime },
+            { date: b.event_date, startTime: b.start_time || '20:00', endTime: b.end_time || '21:30' }
+          )
+      );
+
+    const artistMatches = artistRows
+      .filter((ar) => !blockedIds.has(ar.user_id))
       .map((ar) => {
         const artist = mapIndividualProfile(ar);
-        const hasConflict = bookedSlots.some(
-          (s) =>
-            s.owner_id === artist.id &&
-            hasTimeConflict(
-              { date: listing.eventDate, startTime: listing.startTime, endTime: listing.endTime },
-              { date: s.slot_date, startTime: s.start_time, endTime: s.end_time }
-            )
+        return explainPerformerListingMatch(
+          listing,
+          {
+            id: artist.id,
+            name: artist.fullName,
+            entityType: 'artist',
+            city: artist.city,
+            discipline: artist.discipline,
+            genres: artist.genres,
+            instruments: artist.instruments,
+            subtitle: `${artist.primaryInstrument} · ${artist.city}`,
+            isVerified: artist.isVerified,
+            isAvailableThisWeek: artist.isAvailableThisWeek,
+            completedJobsCount: artist.completedJobsCount,
+            ratingAvg: artist.ratingAvg,
+          },
+          checkPerformerConflict(artist.id)
         );
-        return explainArtistListingMatch(listing, artist, hasConflict);
+      });
+
+    const ensembleMatches = ensembleRows
+      .filter((er) => !blockedIds.has(er.leader_user_id))
+      .map((er) => {
+        const ens = mapEnsemble(db, er);
+        const memberInstruments = Array.from(new Set(ens.members.map((m) => m.instrument)));
+        return explainPerformerListingMatch(
+          listing,
+          {
+            id: ens.id,
+            name: ens.name,
+            entityType: 'ensemble',
+            city: ens.city,
+            discipline: ens.discipline,
+            genres: ens.genres,
+            instruments: memberInstruments,
+            ensembleType: ens.ensembleType,
+            subtitle: `${ens.ensembleType} · ${ens.city}`,
+            isVerified: ens.isVerified,
+            isAvailableThisWeek: false,
+            completedJobsCount: ens.completedJobsCount,
+            ratingAvg: ens.ratingAvg,
+          },
+          checkPerformerConflict(ens.id)
+        );
+      });
+
+    const matches = [...artistMatches, ...ensembleMatches]
+      .sort((a, b) => {
+        if (b.matchedCriteriaCount !== a.matchedCriteriaCount) {
+          return b.matchedCriteriaCount - a.matchedCriteriaCount;
+        }
+        if (Boolean(b.isAvailableThisWeek) !== Boolean(a.isAvailableThisWeek)) {
+          return Number(Boolean(b.isAvailableThisWeek)) - Number(Boolean(a.isAvailableThisWeek));
+        }
+        return Number(b.ratingAvg || 0) - Number(a.ratingAvg || 0);
       })
-      .sort((a, b) => b.matchedCriteriaCount - a.matchedCriteriaCount)
-      .slice(0, 6);
+      .slice(0, 8);
 
     return res.json({ matches });
+  });
+
+  // Performer-facing Recommended Active Listings (Artists & Ensembles)
+  router.get('/performers/me/recommended-listings', requireAuth, (req: AuthedRequest, res) => {
+    const blockedIds = getMutualBlockedUserIds(db, req.user!.id);
+    const blockedBizIds = new Set(
+      (db.prepare('SELECT id, user_id FROM business_profiles').all() as Array<{ id: string; user_id: string }>)
+        .filter((b) => blockedIds.has(b.user_id))
+        .map((b) => b.id)
+    );
+
+    const artistRow = db.prepare('SELECT * FROM individual_profiles WHERE user_id = ?').get(req.user!.id) as any;
+    const ensembleRow = db.prepare('SELECT * FROM ensembles WHERE leader_user_id = ?').get(req.user!.id) as any;
+
+    if (!artistRow && !ensembleRow) {
+      return res.json({ recommendations: [] });
+    }
+
+    const activeListings = (db.prepare(`SELECT * FROM listings WHERE status = 'active' ORDER BY is_replacement DESC, created_at DESC`).all() as any[])
+      .filter((l) => !blockedBizIds.has(l.business_id))
+      .map(mapListing);
+
+    const performers: Array<{
+      id: string;
+      name: string;
+      entityType: 'artist' | 'ensemble';
+      city: string;
+      discipline?: string;
+      genres: string[];
+      instruments: string[];
+      ensembleType?: string;
+      isVerified: boolean;
+      isAvailableThisWeek?: boolean;
+      completedJobsCount: number;
+    }> = [];
+
+    if (artistRow) {
+      const a = mapIndividualProfile(artistRow);
+      performers.push({
+        id: a.id,
+        name: a.fullName,
+        entityType: 'artist',
+        city: a.city,
+        discipline: a.discipline,
+        genres: a.genres,
+        instruments: a.instruments,
+        isVerified: a.isVerified,
+        isAvailableThisWeek: a.isAvailableThisWeek,
+        completedJobsCount: a.completedJobsCount,
+      });
+    }
+
+    if (ensembleRow) {
+      const e = mapEnsemble(db, ensembleRow);
+      performers.push({
+        id: e.id,
+        name: e.name,
+        entityType: 'ensemble',
+        city: e.city,
+        discipline: e.discipline,
+        genres: e.genres,
+        instruments: Array.from(new Set(e.members.map((m) => m.instrument))),
+        ensembleType: e.ensembleType,
+        isVerified: e.isVerified,
+        isAvailableThisWeek: false,
+        completedJobsCount: e.completedJobsCount,
+      });
+    }
+
+    const appliedListingIds = new Set(
+      (db.prepare(`SELECT listing_id FROM applications WHERE applicant_user_id = ? AND status != 'withdrawn'`).all(req.user!.id) as any[]).map(
+        (r) => r.listing_id
+      )
+    );
+
+    const results: Array<ReturnType<typeof explainRecommendedListingForPerformer> & { listing: ReturnType<typeof mapListing>; alreadyApplied: boolean }> = [];
+
+    for (const listing of activeListings) {
+      let bestMatch: ReturnType<typeof explainRecommendedListingForPerformer> | null = null;
+      for (const perf of performers) {
+        const conflictCheck = hasBookedPerformerConflict(
+          db,
+          perf.id,
+          listing.eventDate,
+          listing.startTime,
+          listing.endTime
+        );
+        const rec = explainRecommendedListingForPerformer(perf, listing, conflictCheck.conflict);
+        if (!bestMatch || rec.matchedCriteriaCount > bestMatch.matchedCriteriaCount) {
+          bestMatch = rec;
+        }
+      }
+      if (bestMatch && bestMatch.matchedCriteriaCount >= 2) {
+        results.push({
+          ...bestMatch,
+          listing,
+          alreadyApplied: appliedListingIds.has(listing.id),
+        });
+      }
+    }
+
+    results.sort((a, b) => {
+      if (Boolean(b.listing.isReplacement) !== Boolean(a.listing.isReplacement)) {
+        return Number(Boolean(b.listing.isReplacement)) - Number(Boolean(a.listing.isReplacement));
+      }
+      if (b.matchedCriteriaCount !== a.matchedCriteriaCount) {
+        return b.matchedCriteriaCount - a.matchedCriteriaCount;
+      }
+      return b.listing.budgetAmount - a.listing.budgetAmount;
+    });
+
+    return res.json({ recommendations: results.slice(0, 8) });
   });
 
   // Submit Application (authenticated + verified performer)
@@ -1397,7 +1600,7 @@ export function createMarketplaceRouter(db: DbInstance): Router {
     return res.json({ booking: mapBooking(updated) });
   });
 
-  // Emergency Replacement Listing
+  // Emergency Replacement Listing + Real-Time Broadcast to Matching Performers
   router.post('/bookings/:id/emergency-replacement', requireAuth, (req: AuthedRequest, res) => {
     const bk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id) as any;
     if (!bk) return res.status(404).json({ error: 'Rezervasyon bulunamadı.' });
@@ -1412,6 +1615,11 @@ export function createMarketplaceRouter(db: DbInstance): Router {
     const id = newId('list_rep');
     const now = new Date().toISOString();
     const urgentReason = String(req.body?.urgentReason || 'Son dakika mücbir sebep nedeniyle acil icracı ihtiyacı').trim();
+    const coords =
+      origListing.latitude != null && origListing.longitude != null
+        ? { latitude: Number(origListing.latitude), longitude: Number(origListing.longitude) }
+        : resolveLocalTurkishCoordinates(origListing.city, origListing.district || origListing.venue_name);
+
     db.prepare(`
       INSERT INTO listings (
         id, business_id, business_name, business_type, business_logo, business_verified,
@@ -1420,8 +1628,8 @@ export function createMarketplaceRouter(db: DbInstance): Router {
         event_date, start_time, end_time, application_deadline, city, district, venue_name,
         is_outdoor, repertoire_expectation, dress_code, sound_system_provided,
         transportation_provided, accommodation_provided, budget_amount, currency, status,
-        is_replacement, original_listing_id, urgent_reason, applications_count, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRY', 'active', 1, ?, ?, 0, ?)
+        is_replacement, original_listing_id, urgent_reason, applications_count, latitude, longitude, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRY', 'active', 1, ?, ?, 0, ?, ?, ?)
     `).run(
       id, origListing.business_id, origListing.business_name, origListing.business_type,
       origListing.business_logo, origListing.business_verified,
@@ -1434,11 +1642,129 @@ export function createMarketplaceRouter(db: DbInstance): Router {
       origListing.event_date, origListing.city, origListing.district, origListing.venue_name,
       origListing.is_outdoor, origListing.repertoire_expectation, origListing.dress_code,
       origListing.sound_system_provided, origListing.transportation_provided, origListing.accommodation_provided,
-      origListing.budget_amount, origListing.id, urgentReason, now
+      origListing.budget_amount, origListing.id, urgentReason,
+      coords?.latitude ?? null, coords?.longitude ?? null, now
     );
 
+    // Broadcast real-time urgent replacement alerts to matching verified performers in the same city & discipline
+    const blockedWithEmployer = biz ? getMutualBlockedUserIds(db, biz.user_id) : new Set<string>();
+    const notifiedUserIds = new Set<string>();
+    const targetCity = String(origListing.city || '').toLowerCase();
+    const targetDisc = String(origListing.discipline || 'Müzik').toLowerCase();
+
+    const candidateArtists = db
+      .prepare('SELECT id, user_id, city, discipline, is_available_this_week FROM individual_profiles WHERE is_verified = 1')
+      .all() as any[];
+    for (const a of candidateArtists) {
+      if (a.user_id === bk.performer_user_id || a.user_id === biz?.user_id) continue;
+      if (blockedWithEmployer.has(a.user_id)) continue;
+      if (String(a.city || '').toLowerCase() !== targetCity) continue;
+      if (String(a.discipline || 'Müzik').toLowerCase() !== targetDisc) continue;
+      const conflict = hasBookedPerformerConflict(
+        db,
+        a.id,
+        origListing.event_date,
+        origListing.start_time,
+        origListing.end_time
+      );
+      if (conflict.conflict) continue;
+      notifiedUserIds.add(a.user_id);
+      if (notifiedUserIds.size >= 15) break;
+    }
+
+    if (notifiedUserIds.size < 15) {
+      const candidateEnsembles = db
+        .prepare('SELECT id, leader_user_id, city, discipline FROM ensembles WHERE is_verified = 1')
+        .all() as any[];
+      for (const e of candidateEnsembles) {
+        if (e.leader_user_id === bk.performer_user_id || e.leader_user_id === biz?.user_id) continue;
+        if (blockedWithEmployer.has(e.leader_user_id)) continue;
+        if (String(e.city || '').toLowerCase() !== targetCity) continue;
+        if (String(e.discipline || 'Müzik').toLowerCase() !== targetDisc) continue;
+        const conflict = hasBookedPerformerConflict(
+          db,
+          e.id,
+          origListing.event_date,
+          origListing.start_time,
+          origListing.end_time
+        );
+        if (conflict.conflict) continue;
+        notifiedUserIds.add(e.leader_user_id);
+        if (notifiedUserIds.size >= 15) break;
+      }
+    }
+
+    for (const targetUserId of notifiedUserIds) {
+      notifyUser(db, {
+        userId: targetUserId,
+        type: 'emergency_replacement',
+        title: `Acil Sahne İkame Çağrısı · ${origListing.city}`,
+        body: `${origListing.business_name} (${origListing.event_date}) için acil ikame ilanı açıldı: "${origListing.title}".`,
+        linkView: 'listing_detail',
+        linkEntityId: id,
+      });
+    }
+
+    logAudit(db, {
+      userId: req.user!.id,
+      action: 'CREATE_EMERGENCY_REPLACEMENT',
+      resourceType: 'listing',
+      resourceId: id,
+      details: { bookingId: bk.id, notifiedCount: notifiedUserIds.size },
+    });
+
     const created = db.prepare('SELECT * FROM listings WHERE id = ?').get(id);
-    return res.status(201).json({ listing: mapListing(created) });
+    return res.status(201).json({ listing: mapListing(created), notifiedCount: notifiedUserIds.size });
+  });
+
+  // Booking Contract & Escrow Receipt (Authorized parties + Finance/Admin staff)
+  router.get('/bookings/:id/receipt', requireAuth, (req: AuthedRequest, res) => {
+    const bkRow = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id) as any;
+    if (!bkRow) return res.status(404).json({ error: 'Rezervasyon bulunamadı.' });
+
+    const bizRow = db
+      .prepare('SELECT id, user_id, business_name, tax_number, tax_office, official_title, city, district FROM business_profiles WHERE id = ?')
+      .get(bkRow.business_id) as any;
+    const isEmployer = bizRow?.user_id === req.user!.id;
+    const isPerformer = bkRow.performer_user_id === req.user!.id;
+    const isStaff = ['admin', 'finance_admin', 'moderator', 'support'].includes(req.user!.activeRole);
+
+    if (!isEmployer && !isPerformer && !isStaff) {
+      return res.status(403).json({ error: 'Bu rezervasyonun sözleşme ve güvence dekontunu görüntüleme yetkiniz yok.' });
+    }
+
+    const booking = mapBooking(bkRow);
+    const contractRow = db.prepare('SELECT * FROM contracts WHERE booking_id = ?').get(booking.id) as any;
+    const ledgerRows = db
+      .prepare('SELECT * FROM financial_ledger WHERE booking_id = ? ORDER BY created_at ASC')
+      .all(booking.id) as any[];
+    const disputeRow = db
+      .prepare('SELECT * FROM disputes WHERE booking_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(booking.id) as any;
+
+    const ledgerEntries = ledgerRows.map(mapLedgerEntry);
+    const summary = buildBookingReceiptSummary(booking, ledgerEntries);
+    const verificationCode = `SS-${hmacSha256(`${booking.id}:${booking.grossAmount}:${booking.createdAt}`).slice(0, 12).toUpperCase()}`;
+
+    return res.json({
+      booking,
+      businessInfo: bizRow
+        ? {
+            id: bizRow.id,
+            businessName: bizRow.business_name,
+            officialTitle: bizRow.official_title || bizRow.business_name,
+            taxOffice: bizRow.tax_office || '',
+            taxNumber: bizRow.tax_number || '',
+            city: bizRow.city,
+            district: bizRow.district,
+          }
+        : null,
+      contract: contractRow ? mapContract(contractRow) : null,
+      ledgerEntries,
+      dispute: disputeRow ? mapDispute(disputeRow) : null,
+      summary,
+      verificationCode,
+    });
   });
 
   // Open Dispute (freezes payout)

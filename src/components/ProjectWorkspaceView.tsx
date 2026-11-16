@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
 import { formatCurrencyTRY } from '../utils/businessLogic';
+import { formatProjectMeetingsIcs, triggerBrowserDownload } from '../utils/exportHelpers';
 import {
   ArrowLeft,
   Users,
@@ -14,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Sliders,
+  Printer,
 } from 'lucide-react';
 
 interface ProjectWorkspaceViewProps {
@@ -107,14 +109,37 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ proj
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigateTo('production_desk', `project:${project.id}`)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#16274e] text-white text-xs font-bold cursor-pointer"
-        >
-          <Sliders className="w-3.5 h-3.5" />
-          <span>Prodüksiyon Masasını Aç</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          {project.meetings.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const ics = formatProjectMeetingsIcs(project.title, project.city, project.meetings);
+                triggerBrowserDownload(`proje-toplantilar-${project.id}.ics`, ics, 'text/calendar;charset=utf-8');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+            >
+              <Calendar className="w-3.5 h-3.5 text-[#E45424]" />
+              <span>Toplantı Takvimi (.ics)</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Printer className="w-3.5 h-3.5 text-[#E45424]" />
+            <span>Özeti Yazdır</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateTo('production_desk', `project:${project.id}`)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#16274e] text-white text-xs font-bold cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Prodüksiyon Masasını Aç</span>
+          </button>
+        </div>
       </div>
 
       {feedback && (

@@ -24,6 +24,7 @@ import { createDirectoryRouter } from './server/modules/directory';
 import { createSocialRouter } from './server/modules/social';
 import { createFeedRouter } from './server/modules/feed';
 import { createCommunitiesRouter } from './server/modules/communities';
+import { createSearchRouter } from './server/modules/search';
 import type http from 'http';
 import { createStorageAdapter, getUploadRoot } from './server/services/storageAdapter';
 import {
@@ -49,7 +50,15 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   const uploadRoot = getUploadRoot(options?.uploadDir);
 
   const app = express();
+  app.disable('x-powered-by');
   app.set('trust proxy', 1);
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+    next();
+  });
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
   app.use(attachSessionUser(db));
@@ -66,12 +75,31 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   );
 
   app.get('/api/health', (_req, res) => {
-    res.json({
-      ok: true,
-      service: 'sanatsahnede-api',
-      dbSchemaVersion: getSchemaVersion(db),
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      const check = db.prepare('SELECT 1 as ok').get() as { ok: number } | undefined;
+      if (check?.ok !== 1) {
+        return res.status(503).json({
+          ok: false,
+          service: 'sanatsahnede-api',
+          dbReady: false,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return res.json({
+        ok: true,
+        service: 'sanatsahnede-api',
+        dbReady: true,
+        dbSchemaVersion: getSchemaVersion(db),
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      return res.status(503).json({
+        ok: false,
+        service: 'sanatsahnede-api',
+        dbReady: false,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   app.use('/api/auth', createAuthRouter(db));
@@ -80,6 +108,7 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   app.use('/api/social', createSocialRouter(db));
   app.use('/api/feed', createFeedRouter(db));
   app.use('/api/communities', createCommunitiesRouter(db, realtimeHub));
+  app.use('/api', createSearchRouter(db));
   app.use('/api', createDirectoryRouter(db));
   app.use('/api', createBootstrapRouter(db));
   app.use('/api', createProfilesRouter(db));
@@ -90,6 +119,10 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   app.use('/api', createEcosystemRouter(db));
   app.use('/api', createCommunicationsRouter(db, realtimeHub));
   app.use('/api/admin', createAdminRouter(db));
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API uç noktası bulunamadı.' });
+  });
 
   app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('[API Error]', err);

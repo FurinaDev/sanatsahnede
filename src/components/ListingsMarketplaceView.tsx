@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { useAdaptivePageSize } from '../hooks/useAdaptivePageSize';
 import { ArtDiscipline, BusinessType, Listing } from '../types';
-import { formatCurrencyTRY } from '../utils/businessLogic';
+import { formatCurrencyTRY, RecommendedListingMatch } from '../utils/businessLogic';
+import { apiRequest } from '../services/api';
+import { InteractiveMap } from './ui/InteractiveMap';
+import { CITY_COORDINATES } from '../services/mapProvider';
 import {
   ART_DISCIPLINES,
   DISCIPLINE_SPECIALTIES,
@@ -31,11 +34,13 @@ import {
   Bookmark,
   LayoutGrid,
   List,
+  Map as MapIcon,
   Building2,
   Users,
   ArrowRight,
   Search,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 
 const BUSINESS_TYPE_OPTIONS: (BusinessType | 'Tümü')[] = [
@@ -55,20 +60,68 @@ interface Props {
   onSelectListing: (listing: Listing) => void;
 }
 
+type RecommendedListingItem = RecommendedListingMatch & {
+  listing: Listing;
+  alreadyApplied: boolean;
+};
+
 export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) => {
-  const { listings, filters, setFilters, resetFilters, navigateTo } = useApp();
+  const {
+    listings,
+    filters,
+    setFilters,
+    resetFilters,
+    navigateTo,
+    bookmarks,
+    toggleBookmark,
+    isAuthenticated,
+    setAuthModalMode,
+    currentUser,
+  } = useApp();
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
+  const [onlySaved, setOnlySaved] = useState(false);
+  const [recommendedListings, setRecommendedListings] = useState<RecommendedListingItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const resultsTopRef = useRef<HTMLDivElement>(null);
-  const pageSize = useAdaptivePageSize(viewMode);
+  const pageSize = useAdaptivePageSize(viewMode === 'list' ? 'list' : 'grid');
 
-  const toggleSave = (e: React.MouseEvent, id: string) => {
+  const savedListingIds = useMemo(
+    () =>
+      new Set(
+        bookmarks.filter((b) => b.itemType === 'listing').map((b) => b.itemId)
+      ),
+    [bookmarks]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRecommendedListings([]);
+      setOnlySaved(false);
+      return;
+    }
+    let cancelled = false;
+    apiRequest<{ recommendations: RecommendedListingItem[] }>(
+      '/api/performers/me/recommended-listings'
+    )
+      .then((res) => {
+        if (!cancelled) setRecommendedListings(res.recommendations || []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecommendedListings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, currentUser.id]);
+
+  const handleToggleSave = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setSavedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    if (!isAuthenticated) {
+      setAuthModalMode('login');
+      return;
+    }
+    await toggleBookmark('listing', id);
   };
 
   const handleDisciplineChange = (newDiscipline: ArtDiscipline | 'Tümü') => {
@@ -159,6 +212,10 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
           return false;
         }
 
+        if (onlySaved && !savedListingIds.has(item.id)) {
+          return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -168,7 +225,7 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
           return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
-  }, [listings, filters]);
+  }, [listings, filters, onlySaved, savedListingIds]);
 
   const totalPages = Math.max(1, Math.ceil(filteredListings.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -193,6 +250,7 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
     filters.onlyVerified,
     filters.onlyUrgent,
     filters.sortBy,
+    onlySaved,
     viewMode,
   ]);
 
@@ -281,8 +339,15 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
         clear: () => setFilters((p) => ({ ...p, maxBudget: 100000 })),
       });
     }
+    if (onlySaved) {
+      chips.push({
+        key: 'saved',
+        label: 'Kaydedilen İlanlar',
+        clear: () => setOnlySaved(false),
+      });
+    }
     return chips;
-  }, [filters, setFilters]);
+  }, [filters, setFilters, onlySaved]);
 
   const activeQuickTab = useMemo(() => {
     if (filters.onlyUrgent && filters.discipline === 'Tümü' && filters.genre === 'Tümü') return 'urgent';
@@ -319,10 +384,13 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
             <Filter className="w-3.5 h-3.5 text-[#f25922]" />
             <span>Gelişmiş Filtreler</span>
           </div>
-          {activeFilterChips.length > 0 && (
+          {(activeFilterChips.length > 0 || onlySaved) && (
             <button
               type="button"
-              onClick={resetFilters}
+              onClick={() => {
+                resetFilters();
+                setOnlySaved(false);
+              }}
               className="text-xs font-semibold text-[#64748b] hover:text-[#f25922] flex items-center gap-1 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
@@ -463,6 +531,32 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
               </span>
             </div>
           </label>
+
+          {isAuthenticated && (
+            <label
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                onlySaved
+                  ? 'bg-orange-50/70 dark:bg-[#f25922]/15 border-[#f25922]/40'
+                  : 'bg-[#f8fafc] dark:bg-[#0f1c38]/60 border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#f25922]/40'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={onlySaved}
+                onChange={(e) => setOnlySaved(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-[#f25922] rounded cursor-pointer"
+              />
+              <div className="text-left">
+                <span className="text-xs font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
+                  <Bookmark className="w-3.5 h-3.5 text-[#f25922]" />
+                  <span>Kaydedilen İlanlar ({savedListingIds.size})</span>
+                </span>
+                <span className="text-[11px] text-[#64748b] dark:text-slate-400 block mt-0.5 leading-snug">
+                  Yer işaretine eklediğiniz fırsatlar
+                </span>
+              </div>
+            </label>
+          )}
         </div>
 
         {/* Format & Kadro */}
@@ -640,6 +734,18 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                 >
                   <List className="w-4 h-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('map')}
+                  aria-label="Harita Görünümü"
+                  className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'map'
+                      ? 'bg-white dark:bg-[#13213e] text-[#f25922] shadow-xs'
+                      : 'text-[#64748b] dark:text-slate-400 hover:text-[#0f172a] dark:hover:text-white'
+                  }`}
+                >
+                  <MapIcon className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -696,6 +802,55 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
               </div>
             </div>
 
+            {/* Performer Smart Recommendations Strip */}
+            {isAuthenticated && recommendedListings.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-white dark:bg-[#13213e] border border-[#e2e8f0] dark:border-[#1e335a] shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#0f172a] dark:text-white">
+                    <Sparkles className="w-3.5 h-3.5 text-[#f25922]" />
+                    <span>Sizin İçin Önerilen Sahne İlanları</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-[#64748b] dark:text-slate-400">
+                    Profil &amp; takvim uyumuna göre
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                  {recommendedListings.slice(0, 3).map((rec) => (
+                    <button
+                      key={rec.listing.id}
+                      type="button"
+                      onClick={() => onSelectListing(rec.listing)}
+                      className="p-2.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#f25922]/50 text-left space-y-1 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          {rec.matchedCriteriaCount}/4 Uyum
+                        </span>
+                        {rec.listing.isReplacement ? (
+                          <span className="px-1.5 py-0.5 rounded bg-[#f25922] text-white text-[9px] font-bold uppercase">
+                            Acil
+                          </span>
+                        ) : rec.alreadyApplied ? (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                            Başvuruldu
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs font-bold text-[#0f172a] dark:text-white truncate">
+                        {rec.listing.title}
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-[#64748b] dark:text-slate-400 tabular-nums">
+                        <span className="truncate">{rec.listing.city} · {rec.listing.eventDate}</span>
+                        <span className="font-bold text-[#0f172a] dark:text-white shrink-0">
+                          {formatCurrencyTRY(rec.listing.budgetAmount)}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Empty State or Cards */}
             {filteredListings.length === 0 ? (
               <div className="p-12 text-center bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] shadow-xs space-y-3">
@@ -710,7 +865,10 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                 </p>
                 <button
                   type="button"
-                  onClick={resetFilters}
+                  onClick={() => {
+                    resetFilters();
+                    setOnlySaved(false);
+                  }}
                   className="px-4 py-2 text-xs font-bold text-white bg-[#16274e] dark:bg-[#f25922] hover:opacity-90 rounded-xl transition-opacity cursor-pointer"
                 >
                   Tüm İlanları Göster
@@ -723,10 +881,62 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 480, damping: 34 }}
               >
-                {viewMode === 'grid' ? (
+                {viewMode === 'map' ? (
+                  <div className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-display text-base font-bold text-[#0f172a] dark:text-white">
+                          Açık Sahne İlanları Haritası
+                        </h3>
+                        <p className="text-xs text-[#64748b] dark:text-slate-400">
+                          İşaretçilere tıklayarak ilan detayını açabilir, sabit bütçe ve tarih bilgilerini inceleyebilirsiniz.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[#16274e] dark:text-slate-200 tabular-nums">
+                        {filteredListings.length} İlan Haritada
+                      </span>
+                    </div>
+
+                    <InteractiveMap
+                      heightClassName="h-80 sm:h-96"
+                      center={
+                        filters.city !== 'Tümü' && CITY_COORDINATES[filters.city]
+                          ? [CITY_COORDINATES[filters.city].lat, CITY_COORDINATES[filters.city].lng]
+                          : undefined
+                      }
+                      zoom={filters.city !== 'Tümü' ? 11 : undefined}
+                      markers={filteredListings.map((l, idx) => {
+                        const fallback = CITY_COORDINATES[l.city] || { lat: 41.0082, lng: 28.9784 };
+                        const lat =
+                          typeof l.latitude === 'number' && Number.isFinite(l.latitude)
+                            ? l.latitude
+                            : fallback.lat + ((idx % 5) - 2) * 0.008;
+                        const lng =
+                          typeof l.longitude === 'number' && Number.isFinite(l.longitude)
+                            ? l.longitude
+                            : fallback.lng + ((idx % 4) - 1.5) * 0.01;
+                        return {
+                          id: l.id,
+                          title: l.title,
+                          subtitle: `${l.businessName} · ${l.district}, ${l.city} · ${l.eventDate}`,
+                          badge: formatCurrencyTRY(l.budgetAmount),
+                          latitude: lat,
+                          longitude: lng,
+                          kind: 'listing',
+                          active: Boolean(l.isReplacement),
+                        };
+                      })}
+                      onSelectMarker={(m) => {
+                        const found = filteredListings.find((l) => l.id === m.id);
+                        if (found) onSelectListing(found);
+                      }}
+                      ariaLabel="Sahne ve Sanat İlanları Haritası"
+                    />
+                  </div>
+                ) : viewMode === 'grid' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {paginatedListings.map((listing) => {
-                      const isSaved = savedIds.includes(listing.id);
+                      const isSaved = savedListingIds.has(listing.id);
                       const disc = resolveDiscipline(listing.discipline);
                       const badgeTags =
                         listing.specialtyTags && listing.specialtyTags.length > 0
@@ -761,9 +971,9 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
 
                               <button
                                 type="button"
-                                onClick={(e) => toggleSave(e, listing.id)}
+                                onClick={(e) => handleToggleSave(e, listing.id)}
                                 aria-label="İlanı Kaydet"
-                                className={`p-1.5 rounded-lg border transition-colors shrink-0 ${
+                                className={`p-1.5 rounded-lg border transition-colors shrink-0 cursor-pointer ${
                                   isSaved
                                     ? 'bg-[#f25922]/10 border-[#f25922]/40 text-[#f25922]'
                                     : 'bg-transparent border-transparent text-[#94a3b8] hover:text-[#f25922]'
@@ -912,7 +1122,19 @@ export const ListingsMarketplaceView: React.FC<Props> = ({ onSelectListing }) =>
                             </div>
                           </div>
 
-                          <div className="sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#1e335a] flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-1">
+                          <div className="sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#1e335a] flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleSave(e, listing.id)}
+                              aria-label="İlanı Kaydet"
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                savedListingIds.has(listing.id)
+                                  ? 'bg-[#f25922]/10 border-[#f25922]/40 text-[#f25922]'
+                                  : 'bg-transparent border-[#e2e8f0] dark:border-[#1e335a] text-[#94a3b8] hover:text-[#f25922]'
+                              }`}
+                            >
+                              <Bookmark className={`w-3.5 h-3.5 ${savedListingIds.has(listing.id) ? 'fill-current' : ''}`} />
+                            </button>
                             <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] dark:text-slate-400">
                               Sabit Hakediş
                             </div>

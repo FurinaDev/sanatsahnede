@@ -596,27 +596,57 @@ export const ListingDetailPage: React.FC<Props> = ({ listingId, onBack }) => {
             )}
           </div>
 
-          {/* 9.7 Explainable Smart Match */}
+          {/* 9.7 Explainable Smart Match v2 */}
           {smartMatches.length > 0 && (
             <div className="bg-white dark:bg-[#13213e] p-6 rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] elevation-card space-y-4">
               <div>
                 <h3 className="font-display text-sm font-bold text-[#0f172a] dark:text-white">
-                  Açıklanabilir Sahne Eşleşmesi (Kriter Bazlı)
+                  Açıklanabilir Sahne Eşleşmesi (Sanatçılar &amp; Topluluklar)
                 </h3>
                 <p className="text-[11px] text-[#64748b] dark:text-slate-400">
-                  Sanatçılar tek bir gizli puana indirgenmeden; takvim, şehir, enstrüman ve sahne sicili kriterleriyle şeffaf eşleştirilir.
+                  Sanatçılar ve topluluklar tek bir gizli puana indirgenmeden; takvim, müsaitlik, şehir, enstrüman ve sahne sicili kriterleriyle şeffaf eşleştirilir.
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {smartMatches.slice(0, 4).map((m) => (
+                {smartMatches.slice(0, 6).map((m) => (
                   <div
                     key={m.entityId}
-                    onClick={() => navigateTo('artist_profile', m.entityId)}
-                    className="p-3.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#f25922]/50 cursor-pointer space-y-2"
+                    onClick={() =>
+                      navigateTo(
+                        m.entityType === 'ensemble' ? 'ensemble_profile' : 'artist_profile',
+                        m.entityId
+                      )
+                    }
+                    className="p-3.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#f25922]/50 cursor-pointer space-y-2 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#0f172a] dark:text-white">{m.entityName}</span>
-                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-[#0f172a] dark:text-white truncate">
+                            {m.entityName}
+                          </span>
+                          {m.isVerified && (
+                            <VerifiedBadge
+                              size="sm"
+                              label={m.entityType === 'ensemble' ? 'Doğrulanmış Topluluk' : 'Doğrulanmış Sanatçı'}
+                            />
+                          )}
+                          <span className="px-1.5 py-0.5 rounded bg-[#16274e]/10 dark:bg-white/10 text-[#16274e] dark:text-slate-200 text-[9px] font-bold">
+                            {m.entityType === 'ensemble' ? 'Topluluk' : 'Sanatçı'}
+                          </span>
+                          {m.isAvailableThisWeek && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
+                              Bu Hafta Müsait
+                            </span>
+                          )}
+                        </div>
+                        {m.subtitle && (
+                          <div className="text-[10px] text-[#64748b] dark:text-slate-400 truncate mt-0.5">
+                            {m.subtitle}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 shrink-0 tabular-nums">
                         {m.matchedCriteriaCount}/4 Güçlü Uyum
                       </span>
                     </div>

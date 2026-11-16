@@ -39,6 +39,10 @@ export function createRateLimiter(options: { windowMs: number; maxRequests: numb
 
     if (bucket.timestamps.length >= options.maxRequests) {
       buckets.set(key, bucket);
+      const retryAfterSec = Math.max(1, Math.ceil(options.windowMs / 1000));
+      res.setHeader('X-RateLimit-Limit', String(options.maxRequests));
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('Retry-After', String(retryAfterSec));
       return res.status(429).json({
         error: options.message || 'Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin.',
       });
@@ -46,6 +50,8 @@ export function createRateLimiter(options: { windowMs: number; maxRequests: numb
 
     bucket.timestamps.push(now);
     buckets.set(key, bucket);
+    res.setHeader('X-RateLimit-Limit', String(options.maxRequests));
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, options.maxRequests - bucket.timestamps.length)));
     next();
   };
 }

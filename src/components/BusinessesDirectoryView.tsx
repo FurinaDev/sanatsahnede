@@ -8,6 +8,8 @@ import { ArchitecturalPageHeader } from './ui/ArchitecturalPageHeader';
 import { CustomSelect } from './ui/CustomSelect';
 import { PaginationBar } from './ui/PaginationBar';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { InteractiveMap } from './ui/InteractiveMap';
+import { CITY_COORDINATES } from '../services/mapProvider';
 import {
   Filter,
   ShieldCheck,
@@ -17,6 +19,7 @@ import {
   RotateCcw,
   LayoutGrid,
   List,
+  Map as MapIcon,
   X,
   Building2,
   Layers,
@@ -58,11 +61,11 @@ export const BusinessesDirectoryView: React.FC = () => {
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [onlyWithActiveListings, setOnlyWithActiveListings] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('rating_desc');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const resultsTopRef = useRef<HTMLDivElement>(null);
-  const pageSize = useAdaptivePageSize(viewMode);
+  const pageSize = useAdaptivePageSize(viewMode === 'list' ? 'list' : 'grid');
 
   useEffect(() => {
     if (directorySearchPreset && directorySearchPreset.targetView === 'businesses_directory') {
@@ -448,6 +451,18 @@ export const BusinessesDirectoryView: React.FC = () => {
                 >
                   <List className="w-4 h-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('map')}
+                  aria-label="Harita Görünümü"
+                  className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'map'
+                      ? 'bg-white dark:bg-[#13213e] text-[#f25922] shadow-xs'
+                      : 'text-[#64748b] dark:text-slate-400 hover:text-[#0f172a] dark:hover:text-white'
+                  }`}
+                >
+                  <MapIcon className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -527,7 +542,58 @@ export const BusinessesDirectoryView: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 480, damping: 34 }}
               >
-                {viewMode === 'grid' ? (
+                {viewMode === 'map' ? (
+                  <div className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#e2e8f0] dark:border-[#1e335a] p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-display text-base font-bold text-[#0f172a] dark:text-white">
+                          Kültür Mekânları &amp; İşletmeler Haritası
+                        </h3>
+                        <p className="text-xs text-[#64748b] dark:text-slate-400">
+                          Harita üzerindeki işaretçilere tıklayarak kurum profiline ve açık sahne çağrılarına ulaşabilirsiniz.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[#16274e] dark:text-slate-200 tabular-nums">
+                        {filteredBusinesses.length} Mekân Haritada
+                      </span>
+                    </div>
+
+                    <InteractiveMap
+                      heightClassName="h-80 sm:h-96"
+                      center={
+                        selectedCity !== 'Tümü' && CITY_COORDINATES[selectedCity]
+                          ? [CITY_COORDINATES[selectedCity].lat, CITY_COORDINATES[selectedCity].lng]
+                          : undefined
+                      }
+                      zoom={selectedCity !== 'Tümü' ? 11 : undefined}
+                      markers={filteredBusinesses.map((biz, idx) => {
+                        const fallback = CITY_COORDINATES[biz.city] || { lat: 41.0082, lng: 28.9784 };
+                        const activeListingCount = listings.filter(
+                          (l) => l.businessId === biz.id && l.status === 'active'
+                        ).length;
+                        const lat =
+                          typeof biz.latitude === 'number' && Number.isFinite(biz.latitude)
+                            ? biz.latitude
+                            : fallback.lat + ((idx % 5) - 2) * 0.008;
+                        const lng =
+                          typeof biz.longitude === 'number' && Number.isFinite(biz.longitude)
+                            ? biz.longitude
+                            : fallback.lng + ((idx % 4) - 1.5) * 0.01;
+                        return {
+                          id: biz.id,
+                          title: biz.businessName,
+                          subtitle: `${biz.businessType} · ${biz.district}, ${biz.city}`,
+                          badge: activeListingCount > 0 ? `${activeListingCount} İlan` : biz.businessName.slice(0, 14),
+                          latitude: lat,
+                          longitude: lng,
+                          kind: 'business',
+                        };
+                      })}
+                      onSelectMarker={(m) => navigateTo('business_profile', m.id)}
+                      ariaLabel="İşletmeler ve Kültür Mekânları Haritası"
+                    />
+                  </div>
+                ) : viewMode === 'grid' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {paginatedBusinesses.map((biz) => {
                       const activeListingCount = listings.filter(

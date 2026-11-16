@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
+import { triggerBrowserDownload } from '../utils/exportHelpers';
 import {
   Briefcase,
   Plus,
@@ -11,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Pencil,
+  Download,
 } from 'lucide-react';
 
 export const ArtistStudioView: React.FC = () => {
@@ -149,14 +151,30 @@ export const ArtistStudioView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer self-start hover:border-[#E45424]"
-        >
-          <Printer className="w-4 h-4 text-[#E45424]" />
-          <span>Yazdır / PDF EPK Kaydet</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start no-print">
+          <button
+            type="button"
+            onClick={() => {
+              triggerBrowserDownload(
+                `epk-portfolyo-${currentUser.id || 'sanatci'}.json`,
+                JSON.stringify(portfolios, null, 2),
+                'application/json;charset=utf-8'
+              );
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Download className="w-4 h-4 text-[#E45424]" />
+            <span>EPK JSON İndir</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold cursor-pointer hover:border-[#E45424]"
+          >
+            <Printer className="w-4 h-4 text-[#E45424]" />
+            <span>Yazdır / PDF EPK Kaydet</span>
+          </button>
+        </div>
       </div>
 
       {feedback && (
@@ -174,7 +192,7 @@ export const ArtistStudioView: React.FC = () => {
       )}
 
       {/* Create / Edit Form */}
-      <form onSubmit={handleSubmitPortfolio} className="bg-white dark:bg-[#13213e] rounded-2xl border border-slate-200 dark:border-[#1e335a] p-6 space-y-4">
+      <form onSubmit={handleSubmitPortfolio} className="bg-white dark:bg-[#13213e] rounded-2xl border border-slate-200 dark:border-[#1e335a] p-6 space-y-4 no-print">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold text-base text-[#16274e] dark:text-white flex items-center gap-2">
             {editingId ? <Pencil className="w-4 h-4 text-[#E45424]" /> : <Plus className="w-4 h-4 text-[#E45424]" />}

@@ -24,6 +24,106 @@ export function createSocialRouter(db: DbInstance): Router {
     return res.json(getUserRelationshipsDetail(db, req.user!.id));
   });
 
+  router.get('/preferences', requireAuth, (req: AuthedRequest, res) => {
+    const row = db
+      .prepare('SELECT * FROM user_preferences WHERE user_id = ?')
+      .get(req.user!.id) as any;
+    const now = new Date().toISOString();
+    return res.json({
+      preferences: row
+        ? {
+            userId: row.user_id,
+            notifMessages: Boolean(row.notif_messages),
+            notifBookings: Boolean(row.notif_bookings),
+            notifFollowers: Boolean(row.notif_followers),
+            notifCommunity: Boolean(row.notif_community),
+            notifEmergency: Boolean(row.notif_emergency),
+            showOnlineStatus: Boolean(row.show_online_status),
+            allowDirectMessages: Boolean(row.allow_direct_messages),
+            updatedAt: row.updated_at,
+          }
+        : {
+            userId: req.user!.id,
+            notifMessages: true,
+            notifBookings: true,
+            notifFollowers: true,
+            notifCommunity: true,
+            notifEmergency: true,
+            showOnlineStatus: true,
+            allowDirectMessages: true,
+            updatedAt: now,
+          },
+    });
+  });
+
+  router.put('/preferences', requireAuth, (req: AuthedRequest, res) => {
+    const existing = db
+      .prepare('SELECT * FROM user_preferences WHERE user_id = ?')
+      .get(req.user!.id) as any;
+
+    const b = req.body || {};
+    const toBit = (val: any, fallback: number) =>
+      typeof val === 'boolean' ? (val ? 1 : 0) : fallback;
+
+    const next = {
+      notif_messages: toBit(b.notifMessages, existing ? existing.notif_messages : 1),
+      notif_bookings: toBit(b.notifBookings, existing ? existing.notif_bookings : 1),
+      notif_followers: toBit(b.notifFollowers, existing ? existing.notif_followers : 1),
+      notif_community: toBit(b.notifCommunity, existing ? existing.notif_community : 1),
+      notif_emergency: toBit(b.notifEmergency, existing ? existing.notif_emergency : 1),
+      show_online_status: toBit(b.showOnlineStatus, existing ? existing.show_online_status : 1),
+      allow_direct_messages: toBit(b.allowDirectMessages, existing ? existing.allow_direct_messages : 1),
+      updated_at: new Date().toISOString(),
+    };
+
+    db.prepare(`
+      INSERT INTO user_preferences (
+        user_id, notif_messages, notif_bookings, notif_followers, notif_community,
+        notif_emergency, show_online_status, allow_direct_messages, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        notif_messages = excluded.notif_messages,
+        notif_bookings = excluded.notif_bookings,
+        notif_followers = excluded.notif_followers,
+        notif_community = excluded.notif_community,
+        notif_emergency = excluded.notif_emergency,
+        show_online_status = excluded.show_online_status,
+        allow_direct_messages = excluded.allow_direct_messages,
+        updated_at = excluded.updated_at
+    `).run(
+      req.user!.id,
+      next.notif_messages,
+      next.notif_bookings,
+      next.notif_followers,
+      next.notif_community,
+      next.notif_emergency,
+      next.show_online_status,
+      next.allow_direct_messages,
+      next.updated_at
+    );
+
+    logAudit(db, {
+      userId: req.user!.id,
+      action: 'UPDATE_USER_PREFERENCES',
+      resourceType: 'user_preferences',
+      resourceId: req.user!.id,
+    });
+
+    return res.json({
+      preferences: {
+        userId: req.user!.id,
+        notifMessages: Boolean(next.notif_messages),
+        notifBookings: Boolean(next.notif_bookings),
+        notifFollowers: Boolean(next.notif_followers),
+        notifCommunity: Boolean(next.notif_community),
+        notifEmergency: Boolean(next.notif_emergency),
+        showOnlineStatus: Boolean(next.show_online_status),
+        allowDirectMessages: Boolean(next.allow_direct_messages),
+        updatedAt: next.updated_at,
+      },
+    });
+  });
+
   router.get('/profile/:targetUserId', (req: AuthedRequest, res) => {
     const targetUserId = String(req.params.targetUserId || '').trim();
     const targetUser = db.prepare('SELECT id, first_name, last_name, avatar_url, active_role FROM users WHERE id = ?').get(targetUserId) as any;

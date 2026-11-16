@@ -330,6 +330,43 @@ export const MIGRATIONS: Migration[] = [
       ensureColumn(db, 'business_profiles', 'verified_label', "TEXT NOT NULL DEFAULT ''");
     },
   },
+  {
+    version: 8,
+    name: '008_marketplace_geo_and_indexes',
+    up: (db) => {
+      ensureColumn(db, 'listings', 'latitude', 'REAL');
+      ensureColumn(db, 'listings', 'longitude', 'REAL');
+
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_bookings_listing_id ON bookings(listing_id);
+        CREATE INDEX IF NOT EXISTS idx_offers_listing_id ON offers(listing_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_type ON notifications(user_id, type, created_at DESC);
+      `);
+    },
+  },
+  {
+    version: 9,
+    name: '009_user_preferences_and_search_indexes',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_preferences (
+          user_id TEXT PRIMARY KEY,
+          notif_messages INTEGER NOT NULL DEFAULT 1,
+          notif_bookings INTEGER NOT NULL DEFAULT 1,
+          notif_followers INTEGER NOT NULL DEFAULT 1,
+          notif_community INTEGER NOT NULL DEFAULT 1,
+          notif_emergency INTEGER NOT NULL DEFAULT 1,
+          show_online_status INTEGER NOT NULL DEFAULT 1,
+          allow_direct_messages INTEGER NOT NULL DEFAULT 1,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_opportunities_status_disc ON opportunities(status, discipline);
+        CREATE INDEX IF NOT EXISTS idx_communities_vis_disc ON communities(visibility, discipline);
+        CREATE INDEX IF NOT EXISTS idx_posts_status_created ON posts(status, created_at DESC);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DbInstance): { appliedVersions: number[]; currentVersion: number } {

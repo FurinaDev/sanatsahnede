@@ -65,6 +65,10 @@ export function slugifyTr(input: string): string {
   return slugify(input);
 }
 
+export function hmacSha256(value: string, secret = getSessionSecret()): string {
+  return crypto.createHmac('sha256', secret).update(value).digest('hex');
+}
+
 export function getSessionSecret(): string {
   const configured = process.env.SESSION_SECRET?.trim();
 
