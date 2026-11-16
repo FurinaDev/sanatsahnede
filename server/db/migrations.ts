@@ -215,6 +215,44 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    name: '006_realtime_messaging',
+    up: (db) => {
+      ensureColumn(db, 'conversations', 'conversation_type', "TEXT NOT NULL DEFAULT 'direct'");
+      ensureColumn(db, 'conversations', 'status', "TEXT NOT NULL DEFAULT 'active'");
+      ensureColumn(db, 'conversations', 'created_by_user_id', 'TEXT');
+      ensureColumn(db, 'conversations', 'group_avatar_url', 'TEXT');
+
+      ensureColumn(db, 'messages', 'reply_to_message_id', 'TEXT');
+      ensureColumn(db, 'messages', 'attachment_name', 'TEXT');
+      ensureColumn(db, 'messages', 'attachment_type', 'TEXT');
+      ensureColumn(db, 'messages', 'edited_at', 'TEXT');
+      ensureColumn(db, 'messages', 'deleted_at', 'TEXT');
+      ensureColumn(db, 'messages', 'reactions_json', "TEXT NOT NULL DEFAULT '{}'");
+
+      db.exec(`
+        UPDATE conversations
+        SET conversation_type = CASE
+          WHEN context_type = 'group' THEN 'group'
+          WHEN context_type = 'direct' THEN 'direct'
+          ELSE 'context'
+        END;
+
+        CREATE TABLE IF NOT EXISTS conversation_reads (
+          conversation_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          last_read_message_id TEXT,
+          last_read_at TEXT NOT NULL,
+          PRIMARY KEY (conversation_id, user_id),
+          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_conv_reads_user ON conversation_reads(user_id, last_read_at);
+        CREATE INDEX IF NOT EXISTS idx_conversations_last_msg ON conversations(last_message_at DESC);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DbInstance): { appliedVersions: number[]; currentVersion: number } {

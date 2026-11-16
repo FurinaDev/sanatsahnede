@@ -1,8 +1,8 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { SocialActionBar } from './ui/SocialActionBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
-  ShieldCheck,
   Star,
   MapPin,
   Building,
@@ -83,11 +83,6 @@ export const BusinessProfileView: React.FC<Props> = ({
                 alt={business.businessName}
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-white dark:border-[#13213e] shadow-xl bg-[#f8fafc] dark:bg-[#0f1c38]"
               />
-              {business.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-emerald-700 text-white p-1.5 rounded-lg shadow-md border-2 border-white dark:border-[#13213e]" title="Doğrulanmış İşletme">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-              )}
             </div>
 
             <div className="pt-2">
@@ -102,9 +97,14 @@ export const BusinessProfileView: React.FC<Props> = ({
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-1">
             <div className="space-y-1">
-              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#0f172a] dark:text-white tracking-[-0.02em]">
-                {business.businessName}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#0f172a] dark:text-white tracking-[-0.02em]">
+                  {business.businessName}
+                </h1>
+                {business.isVerified && (
+                  <VerifiedBadge label="Doğrulanmış İşletme" size="lg" />
+                )}
+              </div>
               <div className="text-sm font-semibold text-[#f25922]">{business.businessType}</div>
               <div className="flex items-center gap-2 text-xs text-[#475569] dark:text-slate-300">
                 <MapPin className="w-3.5 h-3.5 text-[#64748b] dark:text-slate-400 shrink-0" />

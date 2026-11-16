@@ -4,6 +4,7 @@ import {
   maskArtistCoordinates,
   resolveLocalTurkishCoordinates,
 } from '../services/geoService';
+import { resolveUserProfileLink } from '../services/socialGraphService';
 import {
   IndividualProfile,
   Ensemble,
@@ -40,6 +41,9 @@ import {
   ArtistPortfolioVersion,
   CareerRecord,
   Conversation,
+  ConversationMessage,
+  ConversationParticipantInfo,
+  RoleType,
   NotificationItem,
   CulturalProgram,
   OriginalsProgram,
@@ -813,26 +817,132 @@ export function mapCareerRecord(row: any): CareerRecord {
   };
 }
 
-export function mapConversation(db: DbInstance, row: any): Conversation {
+export function mapConversation(
+  db: DbInstance,
+  row: any,
+  viewerUserId?: string | null,
+  onlineChecker?: (userId: string) => boolean
+): Conversation {
+  const participantIds = parseJson<string[]>(row.participant_user_ids_json, []);
   const msgRows = db
     .prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC')
     .all(row.id) as any[];
-  return {
-    id: row.id,
-    contextType: row.context_type,
-    contextId: row.context_id,
-    title: row.title,
-    participantUserIds: parseJson<string[]>(row.participant_user_ids_json, []),
-    lastMessageAt: row.last_message_at,
-    messages: msgRows.map((m) => ({
+
+  const userLookup = new Map<
+    string,
+    { name: string; avatarUrl: string; role: RoleType }
+  >();
+
+  const neededUserIds = Array.from(
+    new Set([...participantIds, ...msgRows.map((m) => m.sender_user_id)].filter(Boolean))
+  );
+  if (neededUserIds.length > 0) {
+    const placeholders = neededUserIds.map(() => '?').join(',');
+    const userRows = db
+      .prepare(`SELECT id, first_name, last_name, avatar_url, active_role FROM users WHERE id IN (${placeholders})`)
+      .all(...neededUserIds) as any[];
+    for (const u of userRows) {
+      userLookup.set(u.id, {
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Kullanıcı',
+        avatarUrl: u.avatar_url || '/src/assets/images/artist_jazz_pianist_1794440057025.jpg',
+        role: (u.active_role || 'audience') as RoleType,
+      });
+    }
+  }
+
+  const participants: ConversationParticipantInfo[] = participantIds.map((pId) => {
+    const u = userLookup.get(pId);
+    const link = resolveUserProfileLink(db, pId);
+    return {
+      userId: pId,
+      name: u?.name || 'Kullanıcı',
+      avatarUrl: u?.avatarUrl || '/src/assets/images/artist_jazz_pianist_1794440057025.jpg',
+      role: u?.role || 'audience',
+      subtitle: link.subtitle,
+      profileView: link.profileView,
+      profileEntityId: link.profileEntityId,
+      isOnline: onlineChecker ? onlineChecker(pId) : false,
+    };
+  });
+
+  const readRows = db
+    .prepare('SELECT user_id, last_read_message_id, last_read_at FROM conversation_reads WHERE conversation_id = ?')
+    .all(row.id) as Array<{ user_id: string; last_read_message_id: string | null; last_read_at: string }>;
+  const readBy: Record<string, { lastReadMessageId?: string; lastReadAt: string }> = {};
+  for (const r of readRows) {
+    readBy[r.user_id] = {
+      lastReadMessageId: r.last_read_message_id ?? undefined,
+      lastReadAt: r.last_read_at,
+    };
+  }
+
+  const rawById = new Map<string, any>();
+  for (const m of msgRows) {
+    rawById.set(m.id, m);
+  }
+
+  const messages: ConversationMessage[] = msgRows.map((m) => {
+    const isDeleted = Boolean(m.deleted_at);
+    const replyTarget = m.reply_to_message_id ? rawById.get(m.reply_to_message_id) : undefined;
+    const sender = userLookup.get(m.sender_user_id);
+
+    return {
       id: m.id,
       conversationId: m.conversation_id,
       senderUserId: m.sender_user_id,
       senderName: m.sender_name,
-      body: m.body,
-      attachmentUrl: m.attachment_url ?? undefined,
+      senderAvatar: sender?.avatarUrl,
+      body: isDeleted ? 'Bu mesaj silindi.' : m.body,
+      attachmentUrl: isDeleted ? undefined : m.attachment_url ?? undefined,
+      attachmentName: isDeleted ? undefined : m.attachment_name ?? undefined,
+      attachmentType: isDeleted ? undefined : m.attachment_type ?? undefined,
+      replyToMessageId: m.reply_to_message_id ?? undefined,
+      replyToSnippet: replyTarget
+        ? {
+            id: replyTarget.id,
+            senderName: replyTarget.sender_name,
+            body: replyTarget.deleted_at
+              ? 'Bu mesaj silindi.'
+              : String(replyTarget.body || (replyTarget.attachment_name ? `📎 ${replyTarget.attachment_name}` : '')).slice(0, 120),
+          }
+        : undefined,
+      reactions: isDeleted ? {} : parseJson<Record<string, string[]>>(m.reactions_json, {}),
+      editedAt: m.edited_at ?? undefined,
+      deletedAt: m.deleted_at ?? undefined,
       createdAt: m.created_at,
-    })),
+    };
+  });
+
+  let unreadCount = 0;
+  if (viewerUserId) {
+    const myLastReadAt = readBy[viewerUserId]?.lastReadAt || '';
+    unreadCount = msgRows.filter(
+      (m) =>
+        m.sender_user_id !== viewerUserId &&
+        !m.deleted_at &&
+        (!myLastReadAt || m.created_at > myLastReadAt)
+    ).length;
+  }
+
+  const inferredType =
+    row.conversation_type ||
+    (participantIds.length > 2 ? 'group' : row.context_type === 'direct' ? 'direct' : 'context');
+
+  return {
+    id: row.id,
+    contextType: row.context_type,
+    contextId: row.context_id,
+    conversationType: inferredType as 'direct' | 'group' | 'context',
+    status: (row.status || 'active') as 'active' | 'pending_request' | 'declined',
+    createdByUserId: row.created_by_user_id ?? undefined,
+    groupAvatarUrl: row.group_avatar_url ?? undefined,
+    title: row.title,
+    participantUserIds: participantIds,
+    participants,
+    readBy,
+    unreadCount,
+    lastMessageAt: row.last_message_at,
+    messages,
   };
 }
 

@@ -928,10 +928,10 @@ export function seedDatabase(db: DbInstance, force = false): void {
 
     // 20. Context Conversations, Messages & Notifications (12.3 + 12.9)
     db.prepare(`
-      INSERT OR IGNORE INTO conversations (id, context_type, context_id, title, participant_user_ids_json, last_message_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO conversations (id, context_type, context_id, conversation_type, title, participant_user_ids_json, last_message_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
-      'conv_booking_01', 'booking', 'booking_sample_confirmed_01',
+      'conv_booking_01', 'booking', 'booking_sample_confirmed_01', 'context',
       'Gala Gecesi Solo Piyano — Teknik & Repertuvar Koordinasyonu',
       JSON.stringify(['user_hotel_mgr', 'user_artist_efe']),
       now

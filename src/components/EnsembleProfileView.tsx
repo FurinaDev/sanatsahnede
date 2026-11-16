@@ -1,8 +1,8 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { SocialActionBar } from './ui/SocialActionBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
-  ShieldCheck,
   Star,
   Users,
   MapPin,
@@ -82,11 +82,6 @@ export const EnsembleProfileView: React.FC<Props> = ({
                 alt={ensemble.name}
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-white dark:border-[#13213e] shadow-xl bg-[#f8fafc] dark:bg-[#0f1c38]"
               />
-              {ensemble.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-emerald-600 text-white p-1.5 rounded-lg shadow-md border-2 border-white dark:border-[#13213e]">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-              )}
             </div>
 
             <div className="pt-2">
@@ -105,6 +100,9 @@ export const EnsembleProfileView: React.FC<Props> = ({
                 <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#0f172a] dark:text-white tracking-[-0.02em]">
                   {ensemble.name}
                 </h1>
+                {ensemble.isVerified && (
+                  <VerifiedBadge label="Doğrulanmış Topluluk" size="lg" />
+                )}
                 {ensemble.isRecommended && (
                   <span className="text-[11px] font-bold text-white bg-[#f25922] px-2.5 py-0.5 rounded-md">
                     Öne Çıkan Topluluk

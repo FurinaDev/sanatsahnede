@@ -41,6 +41,7 @@ import { INITIAL_SETTINGS } from '../../src/data/seedData';
 import { isDemoQuickLoginEnabled } from './auth';
 import { getPaymentMode } from '../services/paymentAdapter';
 import { getMutualBlockedUserIds, getUserSocialGraphState } from '../services/socialGraphService';
+import { getDbRealtimeHub } from '../services/realtimeHub';
 
 export function createBootstrapRouter(db: DbInstance): Router {
   const router = Router();
@@ -249,12 +250,14 @@ export function createBootstrapRouter(db: DbInstance): Router {
       myPorts.forEach((p) => portMap.set(p.id, p));
       portfolios = Array.from(portMap.values());
 
+      const hub = getDbRealtimeHub(db);
       conversations = (db.prepare('SELECT * FROM conversations ORDER BY last_message_at DESC').all() as any[])
         .filter((c) => {
+          if (c.status === 'declined') return false;
           const participants = parseJson<string[]>(c.participant_user_ids_json, []);
           return isStaff || participants.includes(user.id);
         })
-        .map((c) => mapConversation(db, c));
+        .map((c) => mapConversation(db, c, user.id, hub?.isUserOnline));
 
       notifications = (db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 40').all(user.id) as any[]).map(mapNotification);
 

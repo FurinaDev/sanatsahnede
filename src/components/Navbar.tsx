@@ -50,6 +50,7 @@ export const Navbar: React.FC = () => {
     ensembles,
     businesses,
     notifications,
+    unreadMessagesCount,
     markNotificationRead,
     markAllNotificationsRead,
   } = useApp();
@@ -196,7 +197,7 @@ export const Navbar: React.FC = () => {
         aria-hidden="true"
         className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden opacity-[0.30] dark:opacity-[0.22] bg-repeat bg-center bg-[url('/src/assets/images/terracotta_pattern.png')] bg-[length:500px_auto] mix-blend-multiply dark:mix-blend-screen [filter:brightness(0.75)_contrast(3.2)_saturate(1.5)] dark:[filter:brightness(0.75)_contrast(3.2)_saturate(1.5)_invert(1)_hue-rotate(180deg)]"
       />
-      <div className="relative z-10 max-w-[1240px] 2xl:max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-2 lg:gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-3">
+      <div className="relative z-10 max-w-[1400px] 2xl:max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 h-16 sm:h-18 flex items-center justify-between gap-2 lg:gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-4">
         {/* Brand Lockup */}
         <button
           type="button"
@@ -214,7 +215,7 @@ export const Navbar: React.FC = () => {
         </button>
 
         {/* Primary Desktop Navigation */}
-        <nav className="hidden xl:flex xl:justify-self-center items-center gap-0.5 xl:gap-1 2xl:gap-1.5 font-medium text-[13px] 2xl:text-[13.5px] text-slate-600 dark:text-slate-300 shrink-0">
+        <nav className="hidden xl:flex xl:justify-self-center items-center gap-1 xl:gap-1.5 2xl:gap-2 font-medium text-[13px] 2xl:text-[13.5px] text-slate-600 dark:text-slate-300 shrink-0">
           {navLinks.map((item) => {
             const isActive = item.match.includes(activeView);
             const Icon = item.icon;
@@ -223,7 +224,7 @@ export const Navbar: React.FC = () => {
                 type="button"
                 key={item.label}
                 onClick={() => navigateTo(item.view)}
-                className={`relative py-2 px-1.5 xl:px-2 2xl:px-2.5 rounded-lg whitespace-nowrap shrink-0 flex items-center gap-1 leading-none transition-colors cursor-pointer ${
+                className={`relative py-2 px-2 xl:px-2.5 2xl:px-3 rounded-lg whitespace-nowrap shrink-0 flex items-center gap-1.5 leading-none transition-colors cursor-pointer ${
                   isActive
                     ? 'text-[#DE5626] font-semibold'
                     : 'hover:text-[#162956] dark:hover:text-white font-medium'
@@ -240,7 +241,7 @@ export const Navbar: React.FC = () => {
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute bottom-0.5 inset-x-1.5 xl:inset-x-2 2xl:inset-x-2.5 h-0.5 rounded-full bg-[#DE5626]"
+                    className="absolute bottom-0.5 inset-x-2 xl:inset-x-2.5 2xl:inset-x-3 h-0.5 rounded-full bg-[#DE5626]"
                   />
                 )}
               </button>
@@ -266,9 +267,14 @@ export const Navbar: React.FC = () => {
                 type="button"
                 aria-label="Mesajlar"
                 onClick={() => navigateTo('messages')}
-                className="hidden sm:inline-flex p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                className="relative hidden sm:inline-flex p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4" />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#E45424] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                    {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                  </span>
+                )}
               </button>
 
               {/* Notifications Bell */}
@@ -334,6 +340,7 @@ export const Navbar: React.FC = () => {
               <div ref={userMenuRef} className="relative">
                 <button
                   type="button"
+                  aria-label="Hesap Menüsü"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-1.5 sm:gap-2 p-1 md:pr-2 xl:pr-1 2xl:pr-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >

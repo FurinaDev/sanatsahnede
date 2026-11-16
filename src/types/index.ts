@@ -872,22 +872,83 @@ export interface CareerRecord {
   createdAt: string;
 }
 
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  senderName: string;
+  senderAvatar?: string;
+  body: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  replyToMessageId?: string;
+  replyToSnippet?: {
+    id: string;
+    senderName: string;
+    body: string;
+  };
+  reactions?: Record<string, string[]>;
+  editedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+}
+
+export interface ConversationParticipantInfo {
+  userId: string;
+  name: string;
+  avatarUrl: string;
+  role: RoleType;
+  subtitle?: string;
+  profileView?: string;
+  profileEntityId?: string;
+  isOnline?: boolean;
+}
+
 export interface Conversation {
   id: string;
   contextType: string;
   contextId: string;
+  conversationType?: 'direct' | 'group' | 'context';
+  status?: 'active' | 'pending_request' | 'declined';
+  createdByUserId?: string;
+  groupAvatarUrl?: string;
   title: string;
   participantUserIds: string[];
+  participants?: ConversationParticipantInfo[];
+  readBy?: Record<string, { lastReadMessageId?: string; lastReadAt: string }>;
+  unreadCount?: number;
   lastMessageAt: string;
-  messages: {
-    id: string;
-    conversationId: string;
-    senderUserId: string;
-    senderName: string;
-    body: string;
-    attachmentUrl?: string;
-    createdAt: string;
-  }[];
+  messages: ConversationMessage[];
+}
+
+export interface MessagingContact {
+  userId: string;
+  name: string;
+  avatarUrl: string;
+  role: RoleType;
+  subtitle?: string;
+  profileView?: string;
+  profileEntityId?: string;
+  isOnline?: boolean;
+}
+
+export interface RealtimeEvent {
+  type:
+    | 'ws:connected'
+    | 'pong'
+    | 'presence:update'
+    | 'typing:update'
+    | 'message:created'
+    | 'message:updated'
+    | 'message:deleted'
+    | 'message:reaction'
+    | 'conversation:created'
+    | 'conversation:updated'
+    | 'conversation:read'
+    | 'notification:created';
+  payload: any;
+  timestamp: string;
 }
 
 export interface NotificationItem {

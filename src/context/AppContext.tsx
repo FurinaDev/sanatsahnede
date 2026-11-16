@@ -37,6 +37,8 @@ import {
   ArtistPortfolioVersion,
   CareerRecord,
   Conversation,
+  MessagingContact,
+  RealtimeEvent,
   NotificationItem,
   CulturalProgram,
   OriginalsProgram,
@@ -55,6 +57,7 @@ import {
 } from '../data/seedData';
 import { CommissionModel } from '../utils/businessLogic';
 import { apiRequest, setSessionToken } from '../services/api';
+import { realtimeClient } from '../services/realtimeClient';
 
 export interface FilterState {
   searchQuery: string;
@@ -299,8 +302,40 @@ interface AppContextType {
   ) => AsyncActionResult;
   cancelEventRegistration: (eventId: string, registrationId?: string, attendeeEmail?: string) => AsyncActionResult;
   sendContactMessage: (data: { name: string; email: string; phone?: string; subject: string; message: string }) => AsyncActionResult;
-  startConversation: (data: { contextType: string; contextId: string; title: string; participantUserIds: string[]; initialMessage?: string }) => AsyncActionResult;
-  sendMessage: (conversationId: string, body: string) => AsyncActionResult;
+  startConversation: (data: {
+    contextType: string;
+    contextId: string;
+    conversationType?: 'direct' | 'group' | 'context';
+    title: string;
+    participantUserIds: string[];
+    initialMessage?: string;
+  }) => AsyncActionResult;
+  sendMessage: (
+    conversationId: string,
+    body: string,
+    options?: {
+      attachmentUrl?: string;
+      attachmentName?: string;
+      attachmentType?: string;
+      replyToMessageId?: string;
+    }
+  ) => AsyncActionResult;
+  editMessage: (conversationId: string, messageId: string, body: string) => AsyncActionResult;
+  deleteMessage: (conversationId: string, messageId: string) => AsyncActionResult;
+  toggleMessageReaction: (conversationId: string, messageId: string, emoji: string) => AsyncActionResult;
+  markConversationRead: (conversationId: string, lastReadMessageId?: string) => Promise<void>;
+  respondConversationRequest: (
+    conversationId: string,
+    decision: 'accept' | 'decline' | 'block'
+  ) => AsyncActionResult;
+  addConversationMember: (conversationId: string, userId: string) => AsyncActionResult;
+  removeConversationMember: (conversationId: string, userId: string) => AsyncActionResult;
+  sendTypingIndicator: (conversationId: string, isTyping: boolean) => void;
+  fetchMessagingContacts: (query?: string) => Promise<MessagingContact[]>;
+  wsConnected: boolean;
+  onlineUserIds: string[];
+  typingByConversation: Record<string, Array<{ userId: string; userName: string; expiresAt: number }>>;
+  unreadMessagesCount: number;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   toggleBookmark: (itemType: string, itemId: string) => AsyncActionResult;
@@ -413,11 +448,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [blockedUsersDetail, setBlockedUsersDetail] = useState<SocialRelationshipUser[]>([]);
   const [mutedUsersDetail, setMutedUsersDetail] = useState<SocialRelationshipUser[]>([]);
   const [repostDraft, setRepostDraft] = useState<FeedRepostDraft | null>(null);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const [typingByConversation, setTypingByConversation] = useState<
+    Record<string, Array<{ userId: string; userName: string; expiresAt: number }>>
+  >({});
 
   const isAuthenticated = Boolean(currentUser && currentUser.id !== 'guest');
   const activeRole: RoleType = currentUser?.activeRole || 'audience';
 
   const bootstrapSeqRef = useRef(0);
+  const currentUserIdRef = useRef<string | null>(null);
+  currentUserIdRef.current = isAuthenticated && currentUser ? currentUser.id : null;
+
+  const upsertConversationState = useCallback((conv: Conversation) => {
+    setConversations((prev) => {
+      const next = [conv, ...prev.filter((c) => c.id !== conv.id)];
+      next.sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''));
+      return next;
+    });
+  }, []);
 
   const refreshSocialRelationships = useCallback(async () => {
     try {
@@ -533,6 +583,145 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshBootstrap();
   }, [refreshBootstrap]);
+
+  // Real-time WebSocket connection lifecycle & authoritative event reducer
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      realtimeClient.disconnect();
+      setOnlineUserIds([]);
+      setTypingByConversation({});
+      return;
+    }
+
+    const unsubStatus = realtimeClient.subscribeStatus((connected) => {
+      setWsConnected(connected);
+    });
+
+    const unsubEvents = realtimeClient.subscribe((event: RealtimeEvent) => {
+      const myUserId = currentUserIdRef.current;
+
+      if (event.type === 'ws:connected') {
+        const list = Array.isArray(event.payload?.onlineUserIds) ? event.payload.onlineUserIds : [];
+        setOnlineUserIds(list);
+        return;
+      }
+
+      if (event.type === 'presence:update') {
+        const uid = event.payload?.userId as string | undefined;
+        const isOnline = Boolean(event.payload?.isOnline);
+        if (!uid) return;
+        setOnlineUserIds((prev) =>
+          isOnline ? Array.from(new Set([...prev, uid])) : prev.filter((id) => id !== uid)
+        );
+        setConversations((prev) =>
+          prev.map((c) => ({
+            ...c,
+            participants: c.participants?.map((p) =>
+              p.userId === uid ? { ...p, isOnline } : p
+            ),
+          }))
+        );
+        return;
+      }
+
+      if (event.type === 'typing:update') {
+        const { conversationId, userId, userName, isTyping } = event.payload || {};
+        if (!conversationId || !userId || userId === myUserId) return;
+        setTypingByConversation((prev) => {
+          const existing = (prev[conversationId] || []).filter(
+            (item) => item.userId !== userId && item.expiresAt > Date.now()
+          );
+          if (isTyping) {
+            existing.push({
+              userId,
+              userName: userName || 'Bir kullanıcı',
+              expiresAt: Date.now() + 4500,
+            });
+          }
+          return { ...prev, [conversationId]: existing };
+        });
+        return;
+      }
+
+      if (
+        event.type === 'message:created' ||
+        event.type === 'message:updated' ||
+        event.type === 'message:deleted' ||
+        event.type === 'message:reaction' ||
+        event.type === 'conversation:created' ||
+        event.type === 'conversation:updated'
+      ) {
+        if (event.payload?.removed && event.payload?.conversationId) {
+          setConversations((prev) => prev.filter((c) => c.id !== event.payload.conversationId));
+          return;
+        }
+        const conv = event.payload?.conversation as Conversation | undefined;
+        if (conv && conv.id) {
+          if (conv.status === 'declined') {
+            setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+          } else {
+            upsertConversationState(conv);
+          }
+          if (event.type === 'message:created' && event.payload?.message?.senderUserId) {
+            setTypingByConversation((prev) => ({
+              ...prev,
+              [conv.id]: (prev[conv.id] || []).filter(
+                (t) => t.userId !== event.payload.message.senderUserId
+              ),
+            }));
+          }
+        }
+        return;
+      }
+
+      if (event.type === 'conversation:read') {
+        const { conversationId, userId, lastReadMessageId, lastReadAt } = event.payload || {};
+        if (!conversationId || !userId) return;
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id !== conversationId) return c;
+            const nextReadBy = {
+              ...(c.readBy || {}),
+              [userId]: { lastReadMessageId, lastReadAt },
+            };
+            const nextUnread = userId === myUserId ? 0 : c.unreadCount;
+            return { ...c, readBy: nextReadBy, unreadCount: nextUnread };
+          })
+        );
+        return;
+      }
+
+      if (event.type === 'notification:created') {
+        const notif = event.payload?.notification as NotificationItem | undefined;
+        if (notif && notif.id) {
+          setNotifications((prev) => [notif, ...prev.filter((n) => n.id !== notif.id)]);
+        }
+      }
+    });
+
+    realtimeClient.connect();
+
+    const cleanupTimer = window.setInterval(() => {
+      const now = Date.now();
+      setTypingByConversation((prev) => {
+        let changed = false;
+        const next: Record<string, Array<{ userId: string; userName: string; expiresAt: number }>> = {};
+        for (const [cid, list] of Object.entries(prev)) {
+          const filtered = list.filter((item) => item.expiresAt > now);
+          if (filtered.length !== list.length) changed = true;
+          if (filtered.length > 0) next[cid] = filtered;
+        }
+        return changed ? next : prev;
+      });
+    }, 2000);
+
+    return () => {
+      window.clearInterval(cleanupTimer);
+      unsubEvents();
+      unsubStatus();
+      realtimeClient.disconnect();
+    };
+  }, [isAuthenticated, currentUser?.id, upsertConversationState]);
 
   const isFlagEnabled = useCallback(
     (key: string) => {
@@ -1176,11 +1365,184 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendContactMessage = (data: { name: string; email: string; phone?: string; subject: string; message: string }) =>
     wrap(() => apiRequest('/api/contact', { method: 'POST', body: data }), false);
 
-  const startConversation = (data: { contextType: string; contextId: string; title: string; participantUserIds: string[]; initialMessage?: string }) =>
-    wrap(() => apiRequest('/api/conversations', { method: 'POST', body: data }));
+  const startConversation = async (data: {
+    contextType: string;
+    contextId: string;
+    conversationType?: 'direct' | 'group' | 'context';
+    title: string;
+    participantUserIds: string[];
+    initialMessage?: string;
+  }) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation; existing?: boolean }>(
+        '/api/conversations',
+        { method: 'POST', body: data }
+      );
+      if (res.conversation) {
+        upsertConversationState(res.conversation);
+      }
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Görüşme başlatılamadı.' };
+    }
+  };
 
-  const sendMessage = (conversationId: string, body: string) =>
-    wrap(() => apiRequest(`/api/conversations/${conversationId}/messages`, { method: 'POST', body: { body } }));
+  const sendMessage = async (
+    conversationId: string,
+    body: string,
+    options?: {
+      attachmentUrl?: string;
+      attachmentName?: string;
+      attachmentType?: string;
+      replyToMessageId?: string;
+    }
+  ) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/messages`,
+        {
+          method: 'POST',
+          body: {
+            body,
+            ...(options || {}),
+          },
+        }
+      );
+      if (res.conversation) {
+        upsertConversationState(res.conversation);
+      }
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Mesaj gönderilemedi.' };
+    }
+  };
+
+  const editMessage = async (conversationId: string, messageId: string, body: string) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/messages/${messageId}`,
+        { method: 'PATCH', body: { body } }
+      );
+      if (res.conversation) upsertConversationState(res.conversation);
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Mesaj düzenlenemedi.' };
+    }
+  };
+
+  const deleteMessage = async (conversationId: string, messageId: string) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/messages/${messageId}`,
+        { method: 'DELETE' }
+      );
+      if (res.conversation) upsertConversationState(res.conversation);
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Mesaj silinemedi.' };
+    }
+  };
+
+  const toggleMessageReaction = async (
+    conversationId: string,
+    messageId: string,
+    emoji: string
+  ) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/messages/${messageId}/reactions`,
+        { method: 'POST', body: { emoji } }
+      );
+      if (res.conversation) upsertConversationState(res.conversation);
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Tepki eklenemedi.' };
+    }
+  };
+
+  const markConversationRead = async (conversationId: string, lastReadMessageId?: string) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/read`,
+        { method: 'POST', body: { lastReadMessageId } }
+      );
+      if (res.conversation) {
+        upsertConversationState(res.conversation);
+      }
+    } catch {
+      // ignore read sync errors silently
+    }
+  };
+
+  const respondConversationRequest = async (
+    conversationId: string,
+    decision: 'accept' | 'decline' | 'block'
+  ) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/respond`,
+        { method: 'POST', body: { decision } }
+      );
+      if (decision === 'accept' && res.conversation) {
+        upsertConversationState(res.conversation);
+      } else {
+        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+        if (decision === 'block') {
+          await refreshBootstrap();
+        }
+      }
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'İstek yanıtlanamadı.' };
+    }
+  };
+
+  const addConversationMember = async (conversationId: string, userId: string) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/members`,
+        { method: 'POST', body: { userId } }
+      );
+      if (res.conversation) upsertConversationState(res.conversation);
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Üye eklenemedi.' };
+    }
+  };
+
+  const removeConversationMember = async (conversationId: string, userId: string) => {
+    try {
+      const res = await apiRequest<{ conversation: Conversation }>(
+        `/api/conversations/${conversationId}/members/${userId}`,
+        { method: 'DELETE' }
+      );
+      if (userId === currentUser?.id) {
+        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+      } else if (res.conversation) {
+        upsertConversationState(res.conversation);
+      }
+      return { success: true, ...res };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Üye gruptan çıkarılamadı.' };
+    }
+  };
+
+  const sendTypingIndicator = useCallback((conversationId: string, isTyping: boolean) => {
+    realtimeClient.sendTyping(conversationId, isTyping);
+  }, []);
+
+  const fetchMessagingContacts = useCallback(async (query = ''): Promise<MessagingContact[]> => {
+    try {
+      const res = await apiRequest<{ contacts: MessagingContact[] }>(
+        `/api/conversations/contacts${query ? `?q=${encodeURIComponent(query)}` : ''}`
+      );
+      return Array.isArray(res.contacts) ? res.contacts : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   const markNotificationRead = async (id: string) => {
     try {
@@ -1331,6 +1693,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendContactMessage,
         startConversation,
         sendMessage,
+        editMessage,
+        deleteMessage,
+        toggleMessageReaction,
+        markConversationRead,
+        respondConversationRequest,
+        addConversationMember,
+        removeConversationMember,
+        sendTypingIndicator,
+        fetchMessagingContacts,
+        wsConnected,
+        onlineUserIds,
+        typingByConversation,
+        unreadMessagesCount,
         markNotificationRead,
         markAllNotificationsRead,
         toggleBookmark,

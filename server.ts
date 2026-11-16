@@ -23,12 +23,26 @@ import { createGeoRouter } from './server/modules/geo';
 import { createDirectoryRouter } from './server/modules/directory';
 import { createSocialRouter } from './server/modules/social';
 import { createFeedRouter } from './server/modules/feed';
+import type http from 'http';
 import { createStorageAdapter, getUploadRoot } from './server/services/storageAdapter';
+import {
+  createRealtimeHub,
+  registerDbRealtimeHub,
+  RealtimeHub,
+} from './server/services/realtimeHub';
 
-export function createApp(options?: { dbPath?: string; uploadDir?: string }): { app: Express; db: DbInstance } {
+export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
+  app: Express;
+  db: DbInstance;
+  realtimeHub: RealtimeHub;
+  attachWebSocket: (server: http.Server) => void;
+} {
   const db = openDatabase(options?.dbPath);
   initSchema(db);
   seedDatabase(db);
+
+  const realtimeHub = createRealtimeHub(db);
+  registerDbRealtimeHub(db, realtimeHub);
 
   const storageAdapter = createStorageAdapter(options?.uploadDir);
   const uploadRoot = getUploadRoot(options?.uploadDir);
@@ -72,7 +86,7 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): { 
   app.use('/api', createVenuesRouter(db));
   app.use('/api', createProductionRouter(db));
   app.use('/api', createEcosystemRouter(db));
-  app.use('/api', createCommunicationsRouter(db));
+  app.use('/api', createCommunicationsRouter(db, realtimeHub));
   app.use('/api/admin', createAdminRouter(db));
 
   app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -84,11 +98,16 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): { 
     });
   });
 
-  return { app, db };
+  return {
+    app,
+    db,
+    realtimeHub,
+    attachWebSocket: (server: http.Server) => realtimeHub.attachToServer(server),
+  };
 }
 
 async function startServer() {
-  const { app } = createApp();
+  const { app, attachWebSocket } = createApp();
   const isProd = process.env.NODE_ENV === 'production';
 
   app.use('/src/assets/images', express.static(path.resolve(process.cwd(), 'src/assets/images')));
@@ -109,9 +128,10 @@ async function startServer() {
   }
 
   const port = Number(process.env.PORT || 3000);
-  app.listen(port, '0.0.0.0', () => {
+  const httpServer = app.listen(port, '0.0.0.0', () => {
     console.log(`SanatSahnede full-stack server running on http://0.0.0.0:${port}`);
   });
+  attachWebSocket(httpServer);
 }
 
 const isDirectExecution =

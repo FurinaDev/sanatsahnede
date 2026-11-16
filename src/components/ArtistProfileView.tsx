@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { resolveDiscipline } from '../utils/disciplineConfig';
 import { SocialActionBar } from './ui/SocialActionBar';
+import { VerifiedBadge } from './ui/VerifiedBadge';
 import {
   ShieldCheck,
   Star,
@@ -212,14 +213,6 @@ export const ArtistProfileView: React.FC<Props> = ({ artistId = 'artist_efe_ozka
                 alt={artist.fullName}
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-white dark:border-[#13213e] shadow-xl bg-[#f8fafc]"
               />
-              {artist.isVerified && (
-                <div
-                  className="absolute bottom-1 right-1 bg-emerald-600 text-white p-1.5 rounded-lg shadow-md border-2 border-white dark:border-[#13213e]"
-                  title="Doğrulanmış Sanatçı"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-              )}
             </div>
 
             {isOwnProfile && (
@@ -258,6 +251,9 @@ export const ArtistProfileView: React.FC<Props> = ({ artistId = 'artist_efe_ozka
                 <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#0f172a] dark:text-white tracking-[-0.02em]">
                   {artist.fullName}
                 </h1>
+                {artist.isVerified && (
+                  <VerifiedBadge label="Doğrulanmış Sanatçı" size="lg" />
+                )}
                 {artist.stageName && artist.stageName !== artist.fullName && (
                   <span className="text-sm text-[#64748b] dark:text-slate-400 italic">({artist.stageName})</span>
                 )}
