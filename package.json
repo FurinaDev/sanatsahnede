@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist dist-server server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/businessLogic.test.ts src/utils/platformStats.test.ts src/utils/globalSearch.test.ts src/utils/eventDetailUtils.test.ts src/utils/exportHelpers.test.ts server/tests/api.test.ts server/tests/stage1.test.ts server/tests/stage2.test.ts server/tests/stage3.test.ts server/tests/stage4.test.ts server/tests/stage5.test.ts server/tests/stage6.test.ts server/tests/stage7.test.ts server/tests/stage8.test.ts"
+    "test": "tsx --test src/utils/businessLogic.test.ts src/utils/platformStats.test.ts src/utils/globalSearch.test.ts src/utils/eventDetailUtils.test.ts src/utils/exportHelpers.test.ts src/utils/calendarEngine.test.ts server/tests/api.test.ts server/tests/stage1.test.ts server/tests/stage2.test.ts server/tests/stage3.test.ts server/tests/stage4.test.ts server/tests/stage5.test.ts server/tests/stage6.test.ts server/tests/stage6_calendar.test.ts server/tests/stage7.test.ts server/tests/stage8.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

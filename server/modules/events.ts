@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { DbInstance } from '../db/database';
 import { AuthedRequest, requireAuth } from '../middleware/auth';
 import { mapEvent, mapEventRegistration } from '../db/mappers';
-import { newId } from '../utils/crypto';
+import { newId, slugifyTr } from '../utils/crypto';
 import { logAudit } from '../services/auditService';
 import { notifyUser } from '../services/notificationService';
 import { createRateLimiter } from '../middleware/rateLimit';
 import { buildPaginationEnvelope, parsePaginationParams } from './directory';
 import { geocodeWithCache } from '../services/geoService';
+import { getMutualBlockedUserIds, resolveUserProfileLink } from '../services/socialGraphService';
+import { EventAttendeePublic, EventReminder } from '../../src/types';
 
 export function createEventsRouter(db: DbInstance): Router {
   const router = Router();
@@ -273,6 +275,43 @@ export function createEventsRouter(db: DbInstance): Router {
     return res.send(ics);
   });
 
+  // Logged-in user's event reminders (registered BEFORE /:id to avoid route shadowing)
+  router.get('/me/reminders', requireAuth, (req: AuthedRequest, res) => {
+    const rows = db
+      .prepare(
+        `SELECT er.*, e.title as event_title, e.event_date, e.start_time, e.venue_name, e.city
+         FROM event_reminders er
+         JOIN events e ON e.id = er.event_id
+         WHERE er.user_id = ?
+         ORDER BY e.event_date ASC, er.created_at DESC`
+      )
+      .all(req.user!.id) as any[];
+
+    const reminders: Array<
+      EventReminder & {
+        eventTitle: string;
+        eventDate: string;
+        startTime: string;
+        venueName: string;
+        city: string;
+      }
+    > = rows.map((r) => ({
+      id: r.id,
+      eventId: r.event_id,
+      userId: r.user_id,
+      remindAt: r.remind_at,
+      note: r.note || '',
+      createdAt: r.created_at,
+      eventTitle: r.event_title,
+      eventDate: r.event_date,
+      startTime: r.start_time || '20:00',
+      venueName: r.venue_name,
+      city: r.city,
+    }));
+
+    return res.json({ reminders });
+  });
+
   // Single Event Detail
   router.get('/:id', (req: AuthedRequest, res) => {
     const row = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id) as any;
@@ -324,6 +363,7 @@ export function createEventsRouter(db: DbInstance): Router {
       .toLowerCase();
     const attendeePhone = String(body.attendeePhone || (req.user ? req.user.phone || '' : '')).trim();
     const notes = String(body.notes || '').trim();
+    const visibility = body.visibility === 'public_attendee' ? 'public_attendee' : 'private';
 
     if (!attendeeName || attendeeName.length < 2) {
       return res.status(400).json({ error: 'Katılımcı ad soyad bilgisi zorunludur.' });
@@ -360,8 +400,8 @@ export function createEventsRouter(db: DbInstance): Router {
 
     db.prepare(`
       INSERT INTO event_registrations (
-        id, event_id, user_id, attendee_name, attendee_email, attendee_phone, notes, ticket_code, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)
+        id, event_id, user_id, attendee_name, attendee_email, attendee_phone, notes, ticket_code, visibility, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)
     `).run(
       id,
       row.id,
@@ -371,6 +411,7 @@ export function createEventsRouter(db: DbInstance): Router {
       attendeePhone,
       notes,
       ticketCode,
+      visibility,
       now
     );
 
@@ -390,7 +431,7 @@ export function createEventsRouter(db: DbInstance): Router {
       action: 'REGISTER_FREE_EVENT',
       resourceType: 'event_registration',
       resourceId: id,
-      details: { eventId: row.id, attendeeEmail },
+      details: { eventId: row.id, attendeeEmail, visibility },
     });
 
     const created = db.prepare('SELECT * FROM event_registrations WHERE id = ?').get(id);
@@ -402,6 +443,243 @@ export function createEventsRouter(db: DbInstance): Router {
       registration: mapEventRegistration(created),
       registrationCount: Number(countRow?.cnt || 0),
     });
+  });
+
+  // Update registration visibility (opt-in / opt-out of public attendees strip)
+  router.patch('/:id/register/visibility', requireAuth, (req: AuthedRequest, res) => {
+    const regRow = db
+      .prepare(
+        `SELECT * FROM event_registrations
+         WHERE event_id = ? AND user_id = ? AND status = 'confirmed'`
+      )
+      .get(req.params.id, req.user!.id) as any;
+
+    if (!regRow) {
+      return res.status(404).json({ error: 'Bu etkinlik için aktif bir kaydınız bulunamadı.' });
+    }
+
+    const visibility = req.body?.visibility === 'public_attendee' ? 'public_attendee' : 'private';
+    db.prepare('UPDATE event_registrations SET visibility = ? WHERE id = ?').run(visibility, regRow.id);
+
+    const updated = db.prepare('SELECT * FROM event_registrations WHERE id = ?').get(regRow.id);
+    return res.json({ registration: mapEventRegistration(updated) });
+  });
+
+  // Public opt-in attendees strip (never leaks opt-out registrants, email, phone or ticketCode)
+  router.get('/:id/attendees', (req: AuthedRequest, res) => {
+    const row = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id) as any;
+    if (!row) return res.status(404).json({ error: 'Etkinlik bulunamadı.' });
+
+    const isStaff =
+      req.user &&
+      ['admin', 'moderator', 'verification_officer'].includes(req.user.activeRole);
+    const isVisible =
+      isStaff ||
+      row.status === 'published' ||
+      (req.user && row.creator_user_id === req.user.id);
+
+    if (!isVisible) {
+      return res.status(404).json({ error: 'Etkinlik bulunamadı.' });
+    }
+
+    const totalRow = db
+      .prepare(`SELECT COUNT(*) as cnt FROM event_registrations WHERE event_id = ? AND status = 'confirmed'`)
+      .get(row.id) as { cnt: number };
+
+    const publicRows = db
+      .prepare(
+        `SELECT id, user_id, attendee_name, created_at
+         FROM event_registrations
+         WHERE event_id = ? AND status = 'confirmed' AND visibility = 'public_attendee'
+         ORDER BY created_at DESC`
+      )
+      .all(row.id) as Array<{ id: string; user_id: string | null; attendee_name: string; created_at: string }>;
+
+    const blockedSet = req.user ? getMutualBlockedUserIds(db, req.user.id) : new Set<string>();
+    const attendees: EventAttendeePublic[] = [];
+
+    for (const reg of publicRows) {
+      if (reg.user_id && blockedSet.has(reg.user_id)) continue;
+
+      let displayName = reg.attendee_name;
+      let avatarUrl = '/src/assets/images/artist_jazz_pianist_1794440057025.jpg';
+      let roleLabel = 'Katılımcı';
+      let profileView: string | undefined;
+      let profileEntityId: string | undefined;
+
+      if (reg.user_id) {
+        const userRow = db
+          .prepare('SELECT first_name, last_name, avatar_url, active_role FROM users WHERE id = ?')
+          .get(reg.user_id) as any;
+        if (userRow) {
+          displayName = `${userRow.first_name || ''} ${userRow.last_name || ''}`.trim() || displayName;
+          avatarUrl = userRow.avatar_url || avatarUrl;
+          const link = resolveUserProfileLink(db, reg.user_id);
+          profileView = link.profileView;
+          profileEntityId = link.profileEntityId;
+          roleLabel = link.subtitle || (userRow.active_role === 'audience' ? 'Sanatsever' : 'SanatSahnede Üyesi');
+        }
+      }
+
+      attendees.push({
+        registrationId: reg.id,
+        userId: reg.user_id || undefined,
+        displayName,
+        avatarUrl,
+        roleLabel,
+        profileView,
+        profileEntityId,
+        createdAt: reg.created_at,
+      });
+    }
+
+    return res.json({
+      attendees,
+      publicCount: attendees.length,
+      totalCount: Number(totalRow?.cnt || 0),
+    });
+  });
+
+  // Event Lounge (auto-creates or retrieves linked community + #etkinlik-sohbeti channel)
+  router.post('/:id/lounge', requireAuth, (req: AuthedRequest, res) => {
+    const row = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id) as any;
+    if (!row) return res.status(404).json({ error: 'Etkinlik bulunamadı.' });
+
+    const isStaff = ['admin', 'moderator'].includes(req.user!.activeRole);
+    if (row.status !== 'published' && row.creator_user_id !== req.user!.id && !isStaff) {
+      return res.status(403).json({ error: 'Bu etkinliğin sohbet alanına erişim izniniz yok.' });
+    }
+
+    const tx = db.transaction(() => {
+      const now = new Date().toISOString();
+      if (row.lounge_community_id) {
+        const existingComm = db
+          .prepare('SELECT * FROM communities WHERE id = ?')
+          .get(row.lounge_community_id) as any;
+        if (existingComm) {
+          db.prepare(
+            `INSERT OR IGNORE INTO community_members (community_id, user_id, role, is_muted, joined_at)
+             VALUES (?, ?, 'member', 0, ?)`
+          ).run(existingComm.id, req.user!.id, now);
+          return {
+            communityId: existingComm.id,
+            channelId: row.lounge_channel_id || '',
+          };
+        }
+      }
+
+      const communityId = newId('comm');
+      const baseSlug = `etkinlik-${slugifyTr(row.title).slice(0, 32)}-${String(row.id).slice(-5)}`;
+      const slugCollision = db.prepare('SELECT 1 FROM communities WHERE slug = ?').get(baseSlug);
+      const slug = slugCollision ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
+      const ownerId = row.creator_user_id || req.user!.id;
+
+      db.prepare(`
+        INSERT INTO communities (
+          id, slug, name, description, discipline, city, avatar_url, cover_url,
+          visibility, owner_user_id, is_verified, verified_label, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'public', ?, 1, 'Etkinlik Kanalı', ?)
+      `).run(
+        communityId,
+        slug,
+        `${row.title} — Sohbet`,
+        `${row.venue_name}, ${row.city} (${row.event_date}) etkinliği için katılımcı ve sahne buluşma kanalı.`,
+        row.discipline || 'Müzik',
+        row.city || 'İstanbul',
+        row.poster_url || '',
+        row.poster_url || '',
+        ownerId,
+        now
+      );
+
+      const annChannelId = newId('chn');
+      const discussChannelId = newId('chn');
+
+      db.prepare(`
+        INSERT INTO community_channels (
+          id, community_id, slug, name, description, channel_type, is_readonly, sort_order, created_at
+        ) VALUES (?, ?, 'duyurular', 'duyurular', 'Etkinlik duyuruları ve program güncellemeleri.', 'announcement', 1, 0, ?)
+      `).run(annChannelId, communityId, now);
+
+      db.prepare(`
+        INSERT INTO community_channels (
+          id, community_id, slug, name, description, channel_type, is_readonly, sort_order, created_at
+        ) VALUES (?, ?, 'etkinlik-sohbeti', 'etkinlik-sohbeti', 'Katılımcılar ve sanatçılar için açık sohbet kanalı.', 'discussion', 0, 1, ?)
+      `).run(discussChannelId, communityId, now);
+
+      db.prepare(
+        `INSERT OR IGNORE INTO community_members (community_id, user_id, role, is_muted, joined_at)
+         VALUES (?, ?, 'owner', 0, ?)`
+      ).run(communityId, ownerId, now);
+
+      if (req.user!.id !== ownerId) {
+        db.prepare(
+          `INSERT OR IGNORE INTO community_members (community_id, user_id, role, is_muted, joined_at)
+           VALUES (?, ?, 'member', 0, ?)`
+        ).run(communityId, req.user!.id, now);
+      }
+
+      db.prepare('UPDATE events SET lounge_community_id = ?, lounge_channel_id = ? WHERE id = ?').run(
+        communityId,
+        discussChannelId,
+        row.id
+      );
+
+      logAudit(db, {
+        userId: req.user!.id,
+        action: 'CREATE_EVENT_LOUNGE',
+        resourceType: 'event',
+        resourceId: row.id,
+        details: { communityId, channelId: discussChannelId },
+      });
+
+      return { communityId, channelId: discussChannelId };
+    });
+
+    const result = tx();
+    return res.status(200).json(result);
+  });
+
+  // Add or update personal event reminder
+  router.post('/:id/reminder', requireAuth, (req: AuthedRequest, res) => {
+    const row = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id) as any;
+    if (!row) return res.status(404).json({ error: 'Etkinlik bulunamadı.' });
+
+    const now = new Date().toISOString();
+    const remindAt = String(req.body?.remindAt || `${row.event_date} 09:00`).trim();
+    const note = String(req.body?.note || '').trim();
+
+    const existing = db
+      .prepare('SELECT * FROM event_reminders WHERE event_id = ? AND user_id = ?')
+      .get(row.id, req.user!.id) as any;
+
+    let reminderId = existing?.id || newId('evrem');
+    if (existing) {
+      db.prepare('UPDATE event_reminders SET remind_at = ?, note = ? WHERE id = ?').run(remindAt, note, existing.id);
+    } else {
+      db.prepare(
+        `INSERT INTO event_reminders (id, event_id, user_id, remind_at, note, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(reminderId, row.id, req.user!.id, remindAt, note, now);
+    }
+
+    const saved = db.prepare('SELECT * FROM event_reminders WHERE id = ?').get(reminderId) as any;
+    return res.status(201).json({
+      reminder: {
+        id: saved.id,
+        eventId: saved.event_id,
+        userId: saved.user_id,
+        remindAt: saved.remind_at,
+        note: saved.note || '',
+        createdAt: saved.created_at,
+      } satisfies EventReminder,
+    });
+  });
+
+  // Remove personal event reminder
+  router.delete('/:id/reminder', requireAuth, (req: AuthedRequest, res) => {
+    db.prepare('DELETE FROM event_reminders WHERE event_id = ? AND user_id = ?').run(req.params.id, req.user!.id);
+    return res.json({ success: true });
   });
 
   // Cancel Event Registration

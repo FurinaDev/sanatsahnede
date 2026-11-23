@@ -7,6 +7,7 @@ import {
   generateIcsCalendarEvent,
   triggerBrowserDownload,
 } from '../utils/exportHelpers';
+import { SchedulingPollWidget } from './ui/SchedulingPollWidget';
 import {
   Sliders,
   Sparkles,
@@ -73,28 +74,28 @@ export const ProductionDeskView: React.FC<ProductionDeskViewProps> = ({ contextI
   const [newSchedTitle, setNewSchedTitle] = useState('');
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  useEffect(() => {
+  const loadWorkspace = React.useCallback(async () => {
     if (!isAuthenticated || !resolvedContext.id) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
     setLoading(true);
     setErrorMsg(null);
-    apiRequest<{ workspace: ProductionWorkspace }>(`/api/production/${resolvedContext.type}/${resolvedContext.id}`)
-      .then((res) => {
-        if (!cancelled) setWorkspace(res.workspace);
-      })
-      .catch((err) => {
-        if (!cancelled) setErrorMsg(err?.message || 'Prodüksiyon çalışma alanına erişilemedi.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const res = await apiRequest<{ workspace: ProductionWorkspace }>(
+        `/api/production/${resolvedContext.type}/${resolvedContext.id}`
+      );
+      setWorkspace(res.workspace);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Prodüksiyon çalışma alanına erişilemedi.');
+    } finally {
+      setLoading(false);
+    }
   }, [isAuthenticated, resolvedContext.type, resolvedContext.id]);
+
+  useEffect(() => {
+    loadWorkspace();
+  }, [loadWorkspace]);
 
   if (!isAuthenticated) {
     return (
@@ -447,6 +448,14 @@ export const ProductionDeskView: React.FC<ProductionDeskViewProps> = ({ contextI
           </div>
         </div>
       </div>
+
+      {/* Collaborative Soundcheck / Rehearsal Scheduling Poll */}
+      <SchedulingPollWidget
+        contextType={workspace.contextType === 'project' ? 'project' : 'booking'}
+        contextId={workspace.contextId}
+        defaultTitle={`${workspace.title} — Soundcheck & Prova Zamanlaması`}
+        onFinalized={loadWorkspace}
+      />
 
       {/* Run of Show, Tasks, Logistics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

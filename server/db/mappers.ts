@@ -532,6 +532,8 @@ export function mapEvent(row: any): EventAnnouncement {
     accessibilitySummary: parseJson<string[]>(row.accessibility_summary_json, []),
     accessibilityVerifiedBy: row.accessibility_verified_by ?? undefined,
     accessibilityVerifiedAt: row.accessibility_verified_at ?? undefined,
+    loungeCommunityId: row.lounge_community_id ?? undefined,
+    loungeChannelId: row.lounge_channel_id ?? undefined,
     ...(() => {
       const fallback = resolveLocalTurkishCoordinates(row.city, row.district || row.venue_name);
       return {
@@ -553,6 +555,7 @@ export function mapEventRegistration(row: any): EventRegistration {
     attendeePhone: row.attendee_phone || undefined,
     notes: row.notes || undefined,
     ticketCode: row.ticket_code,
+    visibility: row.visibility === 'public_attendee' ? 'public_attendee' : 'private',
     status: row.status === 'cancelled' ? 'cancelled' : 'confirmed',
     createdAt: row.created_at,
   };
@@ -602,22 +605,28 @@ export function mapVenue(db: DbInstance, row: any): Venue {
   };
 }
 
-export function mapAvailabilitySlot(row: any): AvailabilitySlot {
+export function mapAvailabilitySlot(row: any, sanitized = false): AvailabilitySlot {
+  const vis = (row.visibility === 'private' || row.visibility === 'project_team' || row.visibility === 'public'
+    ? row.visibility
+    : 'public') as 'private' | 'project_team' | 'public';
+  const isBusyKind = row.slot_kind === 'booked' || row.slot_kind === 'blocked';
   return {
     id: row.id,
     ownerType: row.owner_type,
     ownerId: row.owner_id,
+    ownerUserId: row.owner_user_id ?? undefined,
     ownerName: row.owner_name,
-    title: row.title,
+    title: sanitized && isBusyKind ? (row.slot_kind === 'booked' ? 'Rezerve / Meşgul' : 'Takvim Kapalı') : row.title,
     slotDate: row.slot_date,
     startTime: row.start_time,
     endTime: row.end_time,
     recurrence: row.recurrence,
     slotKind: row.slot_kind,
+    visibility: vis,
     isFree: Boolean(row.is_free),
-    feeAmount: Number(row.fee_amount || 0),
+    feeAmount: sanitized && isBusyKind ? 0 : Number(row.fee_amount || 0),
     city: row.city,
-    notes: row.notes,
+    notes: sanitized ? '' : row.notes,
     createdAt: row.created_at,
   };
 }

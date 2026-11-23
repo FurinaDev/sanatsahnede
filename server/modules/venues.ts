@@ -3,8 +3,15 @@ import { DbInstance } from '../db/database';
 import { AuthedRequest, requireAuth, requireFeatureFlag, requireRole } from '../middleware/auth';
 import { mapAvailabilitySlot, mapVenue } from '../db/mappers';
 import { newId, slugify } from '../utils/crypto';
-import { hasTimeConflict } from '../../src/utils/businessLogic';
 import { logAudit } from '../services/auditService';
+import {
+  checkAvailabilityConflictInDb,
+  filterAndSanitizeAvailabilitySlots,
+  resolveAvailabilityDefaultVisibility,
+  validateAvailabilityPayload,
+  verifyAvailabilityOwnership,
+} from '../services/calendarService';
+import { AvailabilityKind, AvailabilityRecurrence } from '../../src/utils/calendarEngine';
 
 export function createVenuesRouter(db: DbInstance): Router {
   const router = Router();
@@ -191,10 +198,29 @@ export function createVenuesRouter(db: DbInstance): Router {
     }
   );
 
-  // Availability Slots (with strict 409 Conflict Lock!)
-  router.get('/availability', (_req, res) => {
-    const rows = db.prepare('SELECT * FROM availability_slots ORDER BY slot_date ASC, start_time ASC').all() as any[];
-    return res.json({ slots: rows.map(mapAvailabilitySlot) });
+  // Availability Slots (privacy-enforced & strictly conflict-locked)
+  router.get('/availability', (req: AuthedRequest, res) => {
+    const startDate = String(req.query.startDate || '').trim();
+    const endDate = String(req.query.endDate || '').trim();
+    const ownerType = String(req.query.ownerType || '').trim();
+    const ownerId = String(req.query.ownerId || '').trim();
+    const slotKind = String(req.query.slotKind || '').trim();
+    const mine = req.query.mine === '1' || req.query.mine === 'true';
+
+    let rows = db.prepare('SELECT * FROM availability_slots ORDER BY slot_date ASC, start_time ASC').all() as any[];
+
+    if (mine) {
+      if (!req.user) return res.status(401).json({ error: 'Oturum açmanız gerekiyor.' });
+      rows = rows.filter((r) => r.owner_user_id === req.user!.id);
+    }
+    if (ownerType) rows = rows.filter((r) => r.owner_type === ownerType);
+    if (ownerId) rows = rows.filter((r) => r.owner_id === ownerId);
+    if (slotKind) rows = rows.filter((r) => r.slot_kind === slotKind);
+    if (startDate) rows = rows.filter((r) => r.slot_date >= startDate);
+    if (endDate) rows = rows.filter((r) => r.slot_date <= endDate);
+
+    const slots = filterAndSanitizeAvailabilitySlots(db, rows, req.user?.id, req.user?.activeRole);
+    return res.json({ slots });
   });
 
   router.post('/availability', requireAuth, requireFeatureFlag(db, 'open_stage_network'), (req: AuthedRequest, res) => {
@@ -208,6 +234,7 @@ export function createVenuesRouter(db: DbInstance): Router {
       endTime,
       recurrence = 'once',
       slotKind = 'available',
+      visibility: requestedVisibility,
       isFree = false,
       feeAmount = 0,
       city = 'İstanbul',
@@ -218,62 +245,159 @@ export function createVenuesRouter(db: DbInstance): Router {
       return res.status(400).json({ error: 'Sahip, başlık, tarih, başlangıç ve bitiş saati zorunludur.' });
     }
 
-    // Ownership verification
-    const isAdmin = req.user!.activeRole === 'admin';
-    if (!isAdmin) {
-      let authorized = false;
-      if (ownerType === 'venue') {
-        const v = db.prepare('SELECT manager_user_id FROM venues WHERE id = ?').get(ownerId) as any;
-        authorized = v?.manager_user_id === req.user!.id;
-      } else if (ownerType === 'artist') {
-        const a = db.prepare('SELECT user_id FROM individual_profiles WHERE id = ?').get(ownerId) as any;
-        authorized = a?.user_id === req.user!.id;
-      } else if (ownerType === 'ensemble') {
-        const e = db.prepare('SELECT leader_user_id FROM ensembles WHERE id = ?').get(ownerId) as any;
-        authorized = e?.leader_user_id === req.user!.id;
-      } else if (ownerType === 'technical_provider') {
-        const t = db.prepare('SELECT user_id FROM technical_providers WHERE id = ?').get(ownerId) as any;
-        authorized = t?.user_id === req.user!.id;
-      }
-      if (!authorized) {
-        return res.status(403).json({ error: 'Yalnızca kendi profiliniz veya mekânınız için takvim kaydı ekleyebilirsiniz.' });
-      }
+    const visibility = resolveAvailabilityDefaultVisibility(String(slotKind), requestedVisibility);
+    const validationError = validateAvailabilityPayload({
+      ownerType: String(ownerType),
+      slotDate: String(slotDate),
+      startTime: String(startTime),
+      endTime: String(endTime),
+      recurrence: String(recurrence),
+      slotKind: String(slotKind),
+      visibility,
+    });
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
     }
 
-    // Overlap / Conflict Detection
-    const existingSlots = db
-      .prepare('SELECT * FROM availability_slots WHERE owner_id = ? AND slot_date = ?')
-      .all(ownerId, slotDate) as any[];
+    if (!verifyAvailabilityOwnership(db, req.user!.id, req.user!.activeRole, String(ownerType), String(ownerId))) {
+      return res.status(403).json({ error: 'Yalnızca kendi profiliniz veya mekânınız için takvim kaydı ekleyebilirsiniz.' });
+    }
 
-    const conflicting = existingSlots.find((s) =>
-      hasTimeConflict(
-        { date: slotDate, startTime, endTime },
-        { date: s.slot_date, startTime: s.start_time, endTime: s.end_time }
-      )
-    );
-
-    if (conflicting) {
-      return res.status(409).json({
-        error: `Takvim çakışması: ${slotDate} tarihinde ${conflicting.start_time}-${conflicting.end_time} arası "${conflicting.title}" kaydı zaten mevcut.`,
+    const outcome = db.transaction(() => {
+      const conflict = checkAvailabilityConflictInDb(db, {
+        ownerType: String(ownerType),
+        ownerId: String(ownerId),
+        slotDate: String(slotDate),
+        startTime: String(startTime),
+        endTime: String(endTime),
+        recurrence: recurrence as AvailabilityRecurrence,
+        slotKind: slotKind as AvailabilityKind,
       });
+      if (conflict) {
+        return { error: conflict.conflictMessage, status: 409 as const };
+      }
+
+      const id = newId('slot');
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO availability_slots (
+          id, owner_type, owner_id, owner_user_id, owner_name, title, slot_date,
+          start_time, end_time, recurrence, slot_kind, visibility, is_free, fee_amount, city, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        ownerType,
+        ownerId,
+        req.user!.id,
+        ownerName || `${req.user!.firstName} ${req.user!.lastName}`.trim(),
+        String(title).trim(),
+        slotDate,
+        startTime,
+        endTime,
+        recurrence,
+        slotKind,
+        visibility,
+        isFree ? 1 : 0,
+        isFree ? 0 : Number(feeAmount || 0),
+        city,
+        String(notes || '').trim(),
+        now
+      );
+
+      const created = db.prepare('SELECT * FROM availability_slots WHERE id = ?').get(id);
+      return { status: 201 as const, slot: mapAvailabilitySlot(created, false) };
+    })();
+
+    if ('error' in outcome) {
+      return res.status(outcome.status).json({ error: outcome.error });
+    }
+    return res.status(201).json({ slot: outcome.slot });
+  });
+
+  router.patch('/availability/:id', requireAuth, (req: AuthedRequest, res) => {
+    const existing = db.prepare('SELECT * FROM availability_slots WHERE id = ?').get(req.params.id) as any;
+    if (!existing) return res.status(404).json({ error: 'Takvim kaydı bulunamadı.' });
+    if (existing.owner_user_id !== req.user!.id && req.user!.activeRole !== 'admin') {
+      return res.status(403).json({ error: 'Bu takvim kaydını düzenleme yetkiniz yok.' });
     }
 
-    const id = newId('slot');
-    const now = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO availability_slots (
-        id, owner_type, owner_id, owner_user_id, owner_name, title, slot_date,
-        start_time, end_time, recurrence, slot_kind, is_free, fee_amount, city, notes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, ownerType, ownerId, req.user!.id,
-      ownerName || `${req.user!.firstName} ${req.user!.lastName}`.trim(),
-      String(title).trim(), slotDate, startTime, endTime, recurrence,
-      slotKind, isFree ? 1 : 0, isFree ? 0 : Number(feeAmount || 0), city, notes, now
-    );
+    const body = req.body || {};
+    const nextTitle = body.title !== undefined ? String(body.title).trim() : existing.title;
+    const nextDate = body.slotDate !== undefined ? String(body.slotDate) : existing.slot_date;
+    const nextStart = body.startTime !== undefined ? String(body.startTime) : existing.start_time;
+    const nextEnd = body.endTime !== undefined ? String(body.endTime) : existing.end_time;
+    const nextRecurrence = body.recurrence !== undefined ? String(body.recurrence) : existing.recurrence;
+    const nextKind = body.slotKind !== undefined ? String(body.slotKind) : existing.slot_kind;
+    const nextVisibility =
+      body.visibility !== undefined
+        ? String(body.visibility)
+        : existing.visibility || resolveAvailabilityDefaultVisibility(nextKind);
+    const nextIsFree = body.isFree !== undefined ? (body.isFree ? 1 : 0) : existing.is_free;
+    const nextFee = nextIsFree ? 0 : body.feeAmount !== undefined ? Number(body.feeAmount || 0) : existing.fee_amount;
+    const nextCity = body.city !== undefined ? String(body.city).trim() : existing.city;
+    const nextNotes = body.notes !== undefined ? String(body.notes).trim() : existing.notes;
 
-    const created = db.prepare('SELECT * FROM availability_slots WHERE id = ?').get(id);
-    return res.status(201).json({ slot: mapAvailabilitySlot(created) });
+    if (!nextTitle) {
+      return res.status(400).json({ error: 'Başlık boş bırakılamaz.' });
+    }
+
+    const validationError = validateAvailabilityPayload({
+      ownerType: existing.owner_type,
+      slotDate: nextDate,
+      startTime: nextStart,
+      endTime: nextEnd,
+      recurrence: nextRecurrence,
+      slotKind: nextKind,
+      visibility: nextVisibility,
+    });
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    const outcome = db.transaction(() => {
+      const conflict = checkAvailabilityConflictInDb(db, {
+        id: existing.id,
+        ownerType: existing.owner_type,
+        ownerId: existing.owner_id,
+        slotDate: nextDate,
+        startTime: nextStart,
+        endTime: nextEnd,
+        recurrence: nextRecurrence as AvailabilityRecurrence,
+        slotKind: nextKind as AvailabilityKind,
+      });
+      if (conflict) {
+        return { error: conflict.conflictMessage, status: 409 as const };
+      }
+
+      db.prepare(`
+        UPDATE availability_slots
+        SET title = ?, slot_date = ?, start_time = ?, end_time = ?,
+            recurrence = ?, slot_kind = ?, visibility = ?,
+            is_free = ?, fee_amount = ?, city = ?, notes = ?
+        WHERE id = ?
+      `).run(
+        nextTitle,
+        nextDate,
+        nextStart,
+        nextEnd,
+        nextRecurrence,
+        nextKind,
+        nextVisibility,
+        nextIsFree,
+        nextFee,
+        nextCity,
+        nextNotes,
+        existing.id
+      );
+
+      const updated = db.prepare('SELECT * FROM availability_slots WHERE id = ?').get(existing.id);
+      return { status: 200 as const, slot: mapAvailabilitySlot(updated, false) };
+    })();
+
+    if ('error' in outcome) {
+      return res.status(outcome.status).json({ error: outcome.error });
+    }
+    return res.json({ slot: outcome.slot });
   });
 
   router.delete('/availability/:id', requireAuth, (req: AuthedRequest, res) => {

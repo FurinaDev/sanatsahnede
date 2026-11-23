@@ -42,6 +42,7 @@ import { isDemoQuickLoginEnabled } from './auth';
 import { getPaymentMode } from '../services/paymentAdapter';
 import { getMutualBlockedUserIds, getUserSocialGraphState } from '../services/socialGraphService';
 import { getDbRealtimeHub } from '../services/realtimeHub';
+import { filterAndSanitizeAvailabilitySlots } from '../services/calendarService';
 
 export function createBootstrapRouter(db: DbInstance): Router {
   const router = Router();
@@ -135,7 +136,12 @@ export function createBootstrapRouter(db: DbInstance): Router {
       .filter((r) => !privateArtistIds.has(r.target_id))
       .map(mapReview);
     const venues = (db.prepare('SELECT * FROM venues ORDER BY created_at DESC').all() as any[]).map((v) => mapVenue(db, v));
-    const availabilitySlots = (db.prepare('SELECT * FROM availability_slots ORDER BY slot_date ASC').all() as any[]).map(mapAvailabilitySlot);
+    const availabilitySlots = filterAndSanitizeAvailabilitySlots(
+      db,
+      db.prepare('SELECT * FROM availability_slots ORDER BY slot_date ASC, start_time ASC').all() as any[],
+      user?.id,
+      user?.activeRole
+    );
     const technicalProviders = (db.prepare('SELECT * FROM technical_providers ORDER BY rating_avg DESC').all() as any[]).map((tp) => mapTechnicalProvider(db, tp));
     const projects = (db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as any[]).map(mapProject);
     const originalsPrograms = (db.prepare('SELECT * FROM originals_programs').all() as any[]).map(mapOriginalsProgram);

@@ -84,6 +84,7 @@ export const OpenStageNetworkView: React.FC = () => {
     endTime: '17:00',
     slotKind: 'open_stage' as 'open_stage' | 'free_rehearsal' | 'available',
     recurrence: 'once' as 'once' | 'weekly' | 'monthly',
+    visibility: 'public' as 'public' | 'project_team' | 'private',
     isFree: true,
     feeAmount: 0,
     notes: '',
@@ -141,6 +142,7 @@ export const OpenStageNetworkView: React.FC = () => {
           endTime: slotForm.endTime,
           recurrence: slotForm.recurrence,
           slotKind: slotForm.slotKind,
+          visibility: slotForm.visibility,
           isFree: slotForm.isFree,
           feeAmount: slotForm.isFree ? 0 : Number(slotForm.feeAmount || 0),
           city: chosenOwner.city,
@@ -353,6 +355,21 @@ export const OpenStageNetworkView: React.FC = () => {
                     onChange={(e) => setSlotForm((p) => ({ ...p, endTime: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
                   />
+                </div>
+                <div>
+                  <label htmlFor="slot-visibility" className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    Görünürlük
+                  </label>
+                  <select
+                    id="slot-visibility"
+                    value={slotForm.visibility}
+                    onChange={(e) => setSlotForm((p) => ({ ...p, visibility: e.target.value as any }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
+                  >
+                    <option value="public">Herkese Açık</option>
+                    <option value="project_team">Yalnızca Proje Ekibim</option>
+                    <option value="private">Gizli (Sadece Ben)</option>
+                  </select>
                 </div>
                 <div className="flex items-end pb-1">
                   <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">

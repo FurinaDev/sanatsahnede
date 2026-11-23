@@ -25,6 +25,7 @@ import { createSocialRouter } from './server/modules/social';
 import { createFeedRouter } from './server/modules/feed';
 import { createCommunitiesRouter } from './server/modules/communities';
 import { createSearchRouter } from './server/modules/search';
+import { createCalendarRouter } from './server/modules/calendar';
 import type http from 'http';
 import { createStorageAdapter, getUploadRoot } from './server/services/storageAdapter';
 import {
@@ -117,6 +118,7 @@ export function createApp(options?: { dbPath?: string; uploadDir?: string }): {
   app.use('/api', createVenuesRouter(db));
   app.use('/api', createProductionRouter(db));
   app.use('/api', createEcosystemRouter(db));
+  app.use('/api', createCalendarRouter(db));
   app.use('/api', createCommunicationsRouter(db, realtimeHub));
   app.use('/api/admin', createAdminRouter(db));
 

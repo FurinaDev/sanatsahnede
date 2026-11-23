@@ -481,6 +481,8 @@ export interface EventAnnouncement {
   accessibilitySummary?: string[];
   accessibilityVerifiedBy?: string;
   accessibilityVerifiedAt?: string;
+  loungeCommunityId?: string;
+  loungeChannelId?: string;
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -495,7 +497,28 @@ export interface EventRegistration {
   attendeePhone?: string;
   notes?: string;
   ticketCode: string;
+  visibility?: 'private' | 'public_attendee';
   status: 'confirmed' | 'cancelled';
+  createdAt: string;
+}
+
+export interface EventAttendeePublic {
+  registrationId: string;
+  userId?: string;
+  displayName: string;
+  avatarUrl: string;
+  roleLabel: string;
+  profileView?: string;
+  profileEntityId?: string;
+  createdAt: string;
+}
+
+export interface EventReminder {
+  id: string;
+  eventId: string;
+  userId: string;
+  remindAt: string;
+  note: string;
   createdAt: string;
 }
 
@@ -661,6 +684,7 @@ export interface AvailabilitySlot {
   id: string;
   ownerType: 'artist' | 'ensemble' | 'venue' | 'technical_provider';
   ownerId: string;
+  ownerUserId?: string;
   ownerName?: string;
   title: string;
   slotDate: string; // YYYY-MM-DD
@@ -668,6 +692,7 @@ export interface AvailabilitySlot {
   endTime: string; // HH:mm
   recurrence: 'once' | 'weekly' | 'monthly';
   slotKind: 'available' | 'open_stage' | 'free_rehearsal' | 'booked' | 'blocked';
+  visibility?: 'private' | 'project_team' | 'public';
   isFree: boolean;
   feeAmount: number;
   city: string;
@@ -1262,3 +1287,116 @@ export interface UserPreferences {
   allowDirectMessages: boolean;
   updatedAt: string;
 }
+
+export type CalendarEntryType =
+  | 'booking'
+  | 'event_organizing'
+  | 'event_attending'
+  | 'event_reminder'
+  | 'project_meeting'
+  | 'project_deadline'
+  | 'production_schedule'
+  | 'availability'
+  | 'scheduling_poll';
+
+export interface CalendarEntry {
+  id: string;
+  type: CalendarEntryType;
+  title: string;
+  subtitle: string;
+  date: string; // YYYY-MM-DD (Europe/Istanbul)
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  location: string;
+  statusLabel: string;
+  sourceView: string;
+  sourceEntityId?: string;
+  visibility?: 'private' | 'project_team' | 'public';
+  slotKind?: AvailabilitySlot['slotKind'];
+  isActionRequired?: boolean;
+}
+
+export interface SchedulingPollOption {
+  id: string;
+  pollId: string;
+  optionDate: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface SchedulingPollVote {
+  pollId: string;
+  optionId: string;
+  userId: string;
+  response: 'available' | 'unavailable' | 'maybe';
+  updatedAt: string;
+}
+
+export interface SchedulingPollParticipantEval {
+  userId: string;
+  displayName: string;
+  vote: 'available' | 'unavailable' | 'maybe' | null;
+  calendarStatus: 'free' | 'available_slot' | 'conflict';
+  conflictReasonLabel?: string;
+}
+
+export interface SchedulingPollOptionEvaluation {
+  optionId: string;
+  optionDate: string;
+  startTime: string;
+  endTime: string;
+  totalParticipants: number;
+  availableCount: number;
+  unavailableCount: number;
+  maybeCount: number;
+  noVoteCount: number;
+  calendarConflictCount: number;
+  venueStatus: 'not_specified' | 'available' | 'conflict' | 'unavailable';
+  venueLabel?: string;
+  score: number;
+  isRecommended: boolean;
+  hasHardConflict: boolean;
+  participants: SchedulingPollParticipantEval[];
+}
+
+export interface SchedulingPoll {
+  id: string;
+  contextType: 'project' | 'booking' | 'production';
+  contextId: string;
+  contextTitle: string;
+  title: string;
+  description: string;
+  organizerUserId: string;
+  organizerName: string;
+  venueId?: string | null;
+  venueName?: string;
+  durationMins: number;
+  responseDeadline?: string | null;
+  status: 'open' | 'finalized' | 'cancelled';
+  finalizedOptionId?: string | null;
+  finalizedAt?: string | null;
+  options: SchedulingPollOption[];
+  votes: SchedulingPollVote[];
+  evaluations: SchedulingPollOptionEvaluation[];
+  myVotes: Record<string, 'available' | 'unavailable' | 'maybe'>;
+  canManage: boolean;
+  canVote: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpcomingScheduleItem {
+  id: string;
+  kind: 'stage_booking' | 'event_attending';
+  title: string;
+  date: string;
+  startTime: string;
+  venueName: string;
+  city: string;
+  targetView: string;
+  targetEntityId?: string;
+}
+

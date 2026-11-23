@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { apiRequest } from '../services/api';
 import { formatCurrencyTRY } from '../utils/businessLogic';
 import { formatProjectMeetingsIcs, triggerBrowserDownload } from '../utils/exportHelpers';
+import { SchedulingPollWidget } from './ui/SchedulingPollWidget';
 import {
   ArrowLeft,
   Users,
@@ -311,52 +312,63 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({ proj
         )}
 
         {activeTab === 'meetings' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              {project.meetings.map((m) => (
-                <div key={m.id} className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] text-xs">
-                  <div className="font-bold">{m.title}</div>
-                  <div className="text-slate-500 mt-0.5">{m.meetingDate} · {m.notes}</div>
-                </div>
-              ))}
-            </div>
-            {isParticipant && (
-              <div className="flex flex-wrap gap-2">
-                <input
-                  aria-label="Toplantı Başlığı"
-                  value={newMeetingTitle}
-                  onChange={(e) => setNewMeetingTitle(e.target.value)}
-                  placeholder="Toplantı / Prova başlığı"
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
-                />
-                <input
-                  aria-label="Toplantı Tarihi"
-                  type="date"
-                  value={newMeetingDate}
-                  onChange={(e) => setNewMeetingDate(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newMeetingTitle.trim()) return;
-                    patchProject(
-                      {
-                        meetings: [
-                          ...project.meetings,
-                          { id: `pm_${Date.now()}`, title: newMeetingTitle.trim(), meetingDate: newMeetingDate, notes: 'Planlandı' },
-                        ],
-                      },
-                      'Toplantı takvime eklendi.'
-                    );
-                    setNewMeetingTitle('');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#E45424] text-white text-xs font-bold cursor-pointer"
-                >
-                  Toplantı Ekle
-                </button>
+          <div className="space-y-6">
+            <SchedulingPollWidget
+              contextType="project"
+              contextId={project.id}
+              defaultTitle={`${project.title} — Ekip Toplantısı / Prova Zamanlaması`}
+            />
+
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400">
+                Kesinleşmiş Proje Toplantıları ({project.meetings.length})
+              </h3>
+              <div className="space-y-2">
+                {project.meetings.map((m) => (
+                  <div key={m.id} className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] text-xs">
+                    <div className="font-bold">{m.title}</div>
+                    <div className="text-slate-500 mt-0.5">{m.meetingDate} · {m.notes}</div>
+                  </div>
+                ))}
               </div>
-            )}
+              {isParticipant && (
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    aria-label="Toplantı Başlığı"
+                    value={newMeetingTitle}
+                    onChange={(e) => setNewMeetingTitle(e.target.value)}
+                    placeholder="Doğrudan toplantı / prova başlığı"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
+                  />
+                  <input
+                    aria-label="Toplantı Tarihi"
+                    type="date"
+                    value={newMeetingDate}
+                    onChange={(e) => setNewMeetingDate(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B1120] text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newMeetingTitle.trim()) return;
+                      patchProject(
+                        {
+                          meetings: [
+                            ...project.meetings,
+                            { id: `pm_${Date.now()}`, title: newMeetingTitle.trim(), meetingDate: newMeetingDate, notes: 'Planlandı' },
+                          ],
+                        },
+                        'Toplantı takvime eklendi.'
+                      );
+                      setNewMeetingTitle('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#E45424] text-white text-xs font-bold cursor-pointer"
+                  >
+                    Toplantı Ekle
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

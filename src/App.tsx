@@ -42,6 +42,7 @@ import { AudienceDashboard } from './components/AudienceDashboard';
 import { MessagingCenter } from './components/MessagingCenter';
 import { CommunitiesView } from './components/CommunitiesView';
 import { FeedView } from './components/FeedView';
+import { MyCalendarView } from './components/MyCalendarView';
 import {
   ArrowRight,
   Building2,
@@ -252,6 +253,9 @@ const AppContent: React.FC = () => {
 
       case 'communities':
         return <CommunitiesView initialCommunityId={selectedEntityId || undefined} />;
+
+      case 'my_calendar':
+        return <MyCalendarView />;
 
       case 'feed':
         return <FeedView highlightedPostId={selectedEntityId || undefined} />;

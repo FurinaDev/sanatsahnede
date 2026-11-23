@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useEffect, useState } from 'react';
+import { AppView, useApp } from '../context/AppContext';
 import { resolveDiscipline } from '../utils/disciplineConfig';
 import { SocialActionBar } from './ui/SocialActionBar';
 import { VerifiedBadge } from './ui/VerifiedBadge';
+import { apiRequest } from '../services/api';
+import { UpcomingScheduleItem } from '../types';
 import {
   ShieldCheck,
   Star,
@@ -14,6 +16,8 @@ import {
   GraduationCap,
   Sparkles,
   CalendarCheck2,
+  Calendar,
+  ExternalLink,
   Palette,
   BookOpen,
   Theater,
@@ -43,8 +47,36 @@ export const ArtistProfileView: React.FC<Props> = ({ artistId = 'artist_efe_ozka
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [cvFeedback, setCvFeedback] = useState(false);
   const [availBusy, setAvailBusy] = useState(false);
+  const [upcomingItems, setUpcomingItems] = useState<UpcomingScheduleItem[]>([]);
 
   const artist = artists.find((a) => a.id === artistId) || artists[0];
+
+  const hookBlocked = artist ? socialGraph.blockedUserIds.includes(artist.userId) : false;
+  const hookOwn = Boolean(artist && isAuthenticated && currentUser.id === artist.userId);
+  const hookStaff = Boolean(isAuthenticated && ['admin', 'moderator'].includes(currentUser.activeRole));
+  const hookPrivateForViewer = Boolean(artist && artist.profileVisibility === 'private' && !hookOwn && !hookStaff);
+
+  useEffect(() => {
+    if (!artist?.userId || hookBlocked || hookPrivateForViewer) {
+      setUpcomingItems([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest<{ items: UpcomingScheduleItem[]; hidden?: boolean }>(
+      `/api/calendar/users/${artist.userId}/upcoming`
+    )
+      .then((res) => {
+        if (!cancelled && !res.hidden && Array.isArray(res.items)) {
+          setUpcomingItems(res.items);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUpcomingItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [artist?.userId, hookBlocked, hookPrivateForViewer]);
 
   if (!artist) {
     return (
@@ -699,6 +731,58 @@ export const ArtistProfileView: React.FC<Props> = ({ artistId = 'artist_efe_ozka
               <FileText className="w-4 h-4 text-[#16274e] dark:text-[#ffb59e]" />
               <span>{cvFeedback ? 'Portfolyo CV Hazırlandı' : 'Sanatçı CV’sini İndir (PDF)'}</span>
             </button>
+          </div>
+
+          {/* Upcoming Stage & Events */}
+          <div className="bg-white dark:bg-[#13213e] p-6 rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] elevation-card space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-sm font-bold text-[#0f172a] dark:text-white flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#f25922]" />
+                <span>Yaklaşan Sahne ve Etkinliklerim</span>
+              </h3>
+              <span className="text-xs text-[#64748b] dark:text-slate-400 tabular-nums">({upcomingItems.length})</span>
+            </div>
+
+            {upcomingItems.length === 0 ? (
+              <div className="text-xs text-[#475569] dark:text-slate-300 text-center py-4">
+                Yaklaşan açık sahne veya herkese açık etkinlik katılımı bulunmuyor.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {upcomingItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigateTo(item.targetView as AppView, item.targetEntityId)}
+                    className="w-full text-left p-3 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] hover:border-[#f25922] transition-colors flex items-start justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                            item.kind === 'stage_booking'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                          }`}
+                        >
+                          {item.kind === 'stage_booking' ? 'Sahne' : 'Etkinlik'}
+                        </span>
+                        <span className="text-[11px] font-bold text-[#f25922] tabular-nums">
+                          {item.date} · {item.startTime}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-[#0f172a] dark:text-white truncate">
+                        {item.title}
+                      </div>
+                      <div className="text-[11px] text-[#64748b] dark:text-slate-400 truncate">
+                        {item.venueName}, {item.city}
+                      </div>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#f25922] shrink-0 mt-1" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white dark:bg-[#13213e] p-6 rounded-3xl border border-[#e2e8f0] dark:border-[#1e335a] elevation-card space-y-4">

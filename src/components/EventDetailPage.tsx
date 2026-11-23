@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { AppView, useApp } from '../context/AppContext';
 import {
   buildGoogleCalendarUrl,
   formatEventSchedule,
@@ -11,8 +11,11 @@ import { formatCurrencyTRY } from '../utils/businessLogic';
 import { InteractiveMap } from './ui/InteractiveMap';
 import { CITY_COORDINATES } from '../services/mapProvider';
 import { apiRequest } from '../services/api';
+import { EventAttendeePublic } from '../types';
 import {
   Accessibility,
+  Bell,
+  BellRing,
   Bookmark,
   Building2,
   Calendar,
@@ -22,6 +25,9 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
+  Hash,
   Mail,
   MapPin,
   Music,
@@ -52,6 +58,7 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
     navigateTo,
     businesses,
     shareToFeed,
+    refreshBootstrap,
   } = useApp();
 
   const event = events.find((e) => e.id === eventId);
@@ -60,10 +67,53 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
   const [attendeeEmail, setAttendeeEmail] = useState('');
   const [attendeePhone, setAttendeePhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [isPublicAttendee, setIsPublicAttendee] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [resolvedCoords, setResolvedCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const [publicAttendees, setPublicAttendees] = useState<EventAttendeePublic[]>([]);
+  const [attendeesMeta, setAttendeesMeta] = useState<{ publicCount: number; totalCount: number }>({
+    publicCount: 0,
+    totalCount: 0,
+  });
+  const [hasReminder, setHasReminder] = useState(false);
+  const [socialBusy, setSocialBusy] = useState<string | null>(null);
+
+  const loadAttendees = React.useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const res = await apiRequest<{
+        attendees: EventAttendeePublic[];
+        publicCount: number;
+        totalCount: number;
+      }>(`/api/events/${eventId}/attendees`);
+      setPublicAttendees(Array.isArray(res.attendees) ? res.attendees : []);
+      setAttendeesMeta({
+        publicCount: Number(res.publicCount || 0),
+        totalCount: Number(res.totalCount || 0),
+      });
+    } catch {
+      setPublicAttendees([]);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    loadAttendees();
+  }, [loadAttendees]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !eventId) {
+      setHasReminder(false);
+      return;
+    }
+    apiRequest<{ reminders: Array<{ eventId: string }> }>('/api/events/me/reminders')
+      .then((res) => {
+        setHasReminder(Array.isArray(res.reminders) && res.reminders.some((r) => r.eventId === eventId));
+      })
+      .catch(() => setHasReminder(false));
+  }, [isAuthenticated, eventId]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser) {
@@ -156,6 +206,7 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
       attendeeEmail: attendeeEmail.trim(),
       attendeePhone: attendeePhone.trim() || undefined,
       notes: notes.trim() || undefined,
+      visibility: isPublicAttendee ? 'public_attendee' : 'private',
     });
     setIsSubmitting(false);
 
@@ -165,6 +216,7 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
         message: 'Ücretsiz etkinlik kaydınız onaylandı! Katılım kodunuz aşağıda hazırlandı.',
       });
       setNotes('');
+      await loadAttendees();
     } else {
       setFeedback({
         type: 'error',
@@ -187,11 +239,75 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
         type: 'success',
         message: 'Etkinlik katılım kaydınız iptal edildi.',
       });
+      await loadAttendees();
     } else {
       setFeedback({
         type: 'error',
         message: res.error || 'Kayıt iptal edilemedi.',
       });
+    }
+  };
+
+  const handleToggleVisibility = async () => {
+    if (!isAuthenticated || !existingRegistration) return;
+    const nextVis = existingRegistration.visibility === 'public_attendee' ? 'private' : 'public_attendee';
+    setSocialBusy('vis');
+    try {
+      await apiRequest(`/api/events/${event.id}/register/visibility`, {
+        method: 'PATCH',
+        body: { visibility: nextVis },
+      });
+      await refreshBootstrap();
+      await loadAttendees();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Görünürlük güncellenemedi.' });
+    } finally {
+      setSocialBusy(null);
+    }
+  };
+
+  const handleOpenLounge = async () => {
+    if (!isAuthenticated) {
+      setAuthModalMode('login');
+      return;
+    }
+    setSocialBusy('lounge');
+    try {
+      const res = await apiRequest<{ communityId: string; channelId: string }>(
+        `/api/events/${event.id}/lounge`,
+        { method: 'POST' }
+      );
+      await refreshBootstrap();
+      if (res.communityId) {
+        navigateTo('communities', res.communityId);
+      }
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Etkinlik sohbet kanalı açılamadı.' });
+    } finally {
+      setSocialBusy(null);
+    }
+  };
+
+  const handleToggleReminder = async () => {
+    if (!isAuthenticated) {
+      setAuthModalMode('login');
+      return;
+    }
+    setSocialBusy('reminder');
+    try {
+      if (hasReminder) {
+        await apiRequest(`/api/events/${event.id}/reminder`, { method: 'DELETE' });
+        setHasReminder(false);
+        setFeedback({ type: 'success', message: 'Etkinlik hatırlatıcısı Takvimim üzerinden kaldırıldı.' });
+      } else {
+        await apiRequest(`/api/events/${event.id}/reminder`, { method: 'POST', body: {} });
+        setHasReminder(true);
+        setFeedback({ type: 'success', message: 'Hatırlatıcı eklendi! Takvimim sayfasında görüntüleyebilirsiniz.' });
+      }
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Hatırlatıcı güncellenemedi.' });
+    } finally {
+      setSocialBusy(null);
     }
   };
 
@@ -433,12 +549,34 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
             )}
           </div>
 
-          {/* Calendar & Bookmark Utilities */}
+          {/* Calendar, Lounge & Bookmark Utilities */}
           <div className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#E2E8F0] dark:border-[#1e335a] p-5 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs font-bold text-[#162956] dark:text-white">
-              Takvime Ekle &amp; Kaydet
+              Takvim, Hatırlatıcı &amp; Etkinlik Sohbeti
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={socialBusy === 'lounge'}
+                onClick={handleOpenLounge}
+                className="px-3.5 py-2 rounded-xl bg-[#162956] hover:bg-[#1E2B4F] text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                <Hash className="w-3.5 h-3.5 text-[#ffb59e]" />
+                <span>{socialBusy === 'lounge' ? 'Açılıyor...' : 'Etkinlik Sohbet Kanalı'}</span>
+              </button>
+              <button
+                type="button"
+                disabled={socialBusy === 'reminder'}
+                onClick={handleToggleReminder}
+                className={`px-3.5 py-2 rounded-xl border text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  hasReminder
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-[#F2F4F8] dark:bg-[#0f1c38] border-[#E2E8F0] dark:border-[#1e335a] text-[#162956] dark:text-slate-200 hover:border-[#DE5626]'
+                }`}
+              >
+                {hasReminder ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5 text-[#DE5626]" />}
+                <span>{hasReminder ? 'Hatırlatıcı Aktif' : 'Hatırlatıcı Ekle'}</span>
+              </button>
               <a
                 href={buildGoogleCalendarUrl(event)}
                 target="_blank"
@@ -485,6 +623,62 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
               </button>
             </div>
           </div>
+
+          {/* Public Opt-in Attendees Social Strip */}
+          <section className="bg-white dark:bg-[#13213e] rounded-2xl border border-[#E2E8F0] dark:border-[#1e335a] p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] dark:border-[#1e335a] pb-3">
+              <div>
+                <h2 className="font-display text-base font-bold text-[#162956] dark:text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#DE5626]" />
+                  <span>Katılanlar / İlgilenenler</span>
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Katılımını herkese açık paylaşmaya izin veren sanatçı ve sanatseverler listelenir; gizli kayıtlar gösterilmez.
+                </p>
+              </div>
+              <div className="text-xs font-bold text-[#162956] dark:text-slate-200 tabular-nums">
+                {attendeesMeta.publicCount} açık katılımcı · {Math.max(attendeesMeta.totalCount, participantCount)} toplam kayıt
+              </div>
+            </div>
+
+            {publicAttendees.length === 0 ? (
+              <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#0f1c38] border border-dashed border-[#E2E8F0] dark:border-[#1e335a] text-xs text-slate-500 text-center">
+                Henüz herkese açık katılımcı listesinde görünen üye yok. Kayıt olurken görünürlük izni vererek ilk siz görünebilirsiniz.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2.5">
+                {publicAttendees.map((att) => (
+                  <button
+                    key={att.registrationId}
+                    type="button"
+                    disabled={!att.profileView}
+                    onClick={() => {
+                      if (att.profileView) {
+                        navigateTo(att.profileView as AppView, att.profileEntityId);
+                      }
+                    }}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F8FAFC] dark:bg-[#0f1c38] border border-[#E2E8F0] dark:border-[#1e335a] text-left transition-colors ${
+                      att.profileView ? 'hover:border-[#DE5626] cursor-pointer' : 'cursor-default'
+                    }`}
+                  >
+                    <img
+                      src={att.avatarUrl}
+                      alt={att.displayName}
+                      className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#162956] dark:text-white truncate">
+                        {att.displayName}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                        {att.roleLabel}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right Sticky Action Column */}
@@ -541,6 +735,27 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
                       </div>
                     </div>
                   </div>
+
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      disabled={socialBusy === 'vis'}
+                      onClick={handleToggleVisibility}
+                      className="w-full py-2 px-3 rounded-xl bg-[#F8FAFC] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[11px] font-bold text-[#162956] dark:text-slate-200 hover:border-[#DE5626] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {existingRegistration.visibility === 'public_attendee' ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Katılımcı Listesinde Görünüyor (Gizle)</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Katılımcı Listesinde Gizli (Herkese Aç)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   {cancelConfirmOpen ? (
                     <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 space-y-2">
@@ -634,6 +849,18 @@ export const EventDetailPage: React.FC<Props> = ({ eventId, onBack }) => {
                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#e2e8f0] dark:border-[#1e335a] bg-[#f8fafc] dark:bg-[#0f1c38] text-[#0f172a] dark:text-white focus:outline-hidden focus:border-[#DE5626]"
                     />
                   </div>
+
+                  <label className="flex items-start gap-2 p-2.5 rounded-xl bg-[#f8fafc] dark:bg-[#0f1c38] border border-[#e2e8f0] dark:border-[#1e335a] text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isPublicAttendee}
+                      onChange={(e) => setIsPublicAttendee(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-300 text-[#DE5626]"
+                    />
+                    <span>
+                      <strong>Katılımcı listesinde herkese açık görün</strong> (adınız ve profil bağlantınız etkinlik sayfasında listelenir; iletişim bilgileriniz gizli kalır).
+                    </span>
+                  </label>
 
                   <button
                     type="submit"

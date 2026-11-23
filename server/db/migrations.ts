@@ -367,6 +367,81 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 10,
+    name: '010_event_social_and_smart_production_calendar',
+    up: (db) => {
+      ensureColumn(db, 'event_registrations', 'visibility', "TEXT NOT NULL DEFAULT 'private'");
+      ensureColumn(db, 'events', 'lounge_community_id', 'TEXT');
+      ensureColumn(db, 'events', 'lounge_channel_id', 'TEXT');
+      ensureColumn(db, 'availability_slots', 'visibility', "TEXT NOT NULL DEFAULT 'public'");
+
+      db.exec(`
+        UPDATE availability_slots
+        SET visibility = 'private'
+        WHERE slot_kind IN ('booked', 'blocked');
+
+        CREATE TABLE IF NOT EXISTS event_reminders (
+          id TEXT PRIMARY KEY,
+          event_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          remind_at TEXT NOT NULL,
+          note TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          UNIQUE(event_id, user_id),
+          FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_event_reminders_user ON event_reminders(user_id, remind_at);
+        CREATE INDEX IF NOT EXISTS idx_availability_owner_type_date ON availability_slots(owner_type, owner_id, slot_date);
+
+        CREATE TABLE IF NOT EXISTS scheduling_polls (
+          id TEXT PRIMARY KEY,
+          context_type TEXT NOT NULL,
+          context_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          organizer_user_id TEXT NOT NULL,
+          venue_id TEXT,
+          duration_mins INTEGER NOT NULL DEFAULT 120,
+          response_deadline TEXT,
+          status TEXT NOT NULL DEFAULT 'open',
+          finalized_option_id TEXT,
+          finalized_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (organizer_user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_sched_polls_context ON scheduling_polls(context_type, context_id, status);
+
+        CREATE TABLE IF NOT EXISTS scheduling_poll_options (
+          id TEXT PRIMARY KEY,
+          poll_id TEXT NOT NULL,
+          option_date TEXT NOT NULL,
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          notes TEXT NOT NULL DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (poll_id) REFERENCES scheduling_polls(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_sched_poll_opts_poll ON scheduling_poll_options(poll_id, sort_order);
+
+        CREATE TABLE IF NOT EXISTS scheduling_poll_votes (
+          poll_id TEXT NOT NULL,
+          option_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          response TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (option_id, user_id),
+          FOREIGN KEY (poll_id) REFERENCES scheduling_polls(id) ON DELETE CASCADE,
+          FOREIGN KEY (option_id) REFERENCES scheduling_poll_options(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_sched_poll_votes_poll ON scheduling_poll_votes(poll_id, user_id);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DbInstance): { appliedVersions: number[]; currentVersion: number } {

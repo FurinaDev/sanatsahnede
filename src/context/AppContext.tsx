@@ -122,6 +122,7 @@ export type AppView =
   | 'originals'
   | 'messages'
   | 'communities'
+  | 'my_calendar'
   | 'feed'
   | 'how_it_works'
   | 'events'
@@ -305,7 +306,7 @@ interface AppContextType {
   deleteEventAnnouncement: (eventId: string) => AsyncActionResult;
   registerForEvent: (
     eventId: string,
-    details: { attendeeName: string; attendeeEmail: string; attendeePhone?: string; notes?: string }
+    details: { attendeeName: string; attendeeEmail: string; attendeePhone?: string; notes?: string; visibility?: 'private' | 'public_attendee' }
   ) => AsyncActionResult;
   cancelEventRegistration: (eventId: string, registrationId?: string, attendeeEmail?: string) => AsyncActionResult;
   sendContactMessage: (data: { name: string; email: string; phone?: string; subject: string; message: string }) => AsyncActionResult;
@@ -785,6 +786,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (clean === '/originals') return { view: 'originals', entityId: null };
       if (clean === '/akis') return { view: 'feed', entityId: null };
       if (clean === '/mesajlar') return { view: 'messages', entityId: null };
+      if (clean === '/takvimim') return { view: 'my_calendar', entityId: null };
       if (clean === '/kanallar') return { view: 'communities', entityId: null };
       if (clean.startsWith('/kanallar/')) {
         const param = decodeURIComponent(clean.slice('/kanallar/'.length));
@@ -845,6 +847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       case 'originals': return '/originals';
       case 'feed': return '/akis';
       case 'messages': return '/mesajlar';
+      case 'my_calendar': return '/takvimim';
       case 'communities': return entityId ? `/kanallar/${entityId}` : '/kanallar';
       case 'contact': return '/iletisim';
       case 'about': return '/hakkimizda';
@@ -1324,7 +1327,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const registerForEvent = async (
     eventId: string,
-    details: { attendeeName: string; attendeeEmail: string; attendeePhone?: string; notes?: string }
+    details: { attendeeName: string; attendeeEmail: string; attendeePhone?: string; notes?: string; visibility?: 'private' | 'public_attendee' }
   ) => {
     try {
       const res = await apiRequest<{ registration: EventRegistration; registrationCount: number }>(
